@@ -1,6 +1,8 @@
 # coding=utf-8
+from celery_once import QueueOnce
 from django.db.models import QuerySet
 
+from common.utils.lock import RedisLock
 from common.utils.logger import maxkb_logger
 from ops import celery_app
 from trigger.handler.base_trigger import BaseTrigger
@@ -234,22 +236,28 @@ class ScheduledTrigger(BaseTrigger):
 
     @staticmethod
     def execute(trigger, **kwargs):
-        trigger_task = kwargs.get("trigger_task")
+        trigger_task = kwargs.pop("trigger_task", None)
         if not trigger_task:
             maxkb_logger.warning(f"unsupported task={trigger_task}")
             return
         source_type = trigger_task["source_type"]
+        rlock = RedisLock()
+        trigger_id = str(trigger_task.get('trigger'))
+        source_id = str(trigger_task["source_id"])
+        if rlock.try_lock(f'{trigger_id}:{source_id}', 30 * 30):
+            try:
+                if source_type == "APPLICATION":
+                    from trigger.handler.impl.task.application_task import ApplicationTask
 
-        if source_type == "APPLICATION":
-            from trigger.handler.impl.task.application_task import ApplicationTask
+                    ApplicationTask().execute(trigger_task, **kwargs)
+                elif source_type == "TOOL":
+                    from trigger.handler.impl.task.tool_task import ToolTask
 
-            ApplicationTask().execute(trigger_task, **kwargs)
-        elif source_type == "TOOL":
-            from trigger.handler.impl.task.tool_task import ToolTask
-
-            ToolTask().execute(trigger_task, **kwargs)
-        else:
-            maxkb_logger.warning(f"unsupported source_type={source_type}, task_id={trigger_task['id']}")
+                    ToolTask().execute(trigger_task, **kwargs)
+                else:
+                    maxkb_logger.warning(f"unsupported source_type={source_type}, task_id={trigger_task['id']}")
+            finally:
+                rlock.un_lock(f'{trigger_id}:{source_id}')
 
     def support(self, trigger, **kwargs):
         return trigger.get("trigger_type") == "SCHEDULED"

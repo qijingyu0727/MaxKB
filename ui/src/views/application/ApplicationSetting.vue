@@ -17,7 +17,7 @@
           type="primary"
           @click="publish(applicationFormRef)"
           :disabled="loading"
-          v-if="permissionPrecise.edit(id)"
+          v-if="permissionPrecise.publish(id)"
         >
           {{ $t('common.publish') }}
         </el-button>
@@ -130,6 +130,7 @@
                       $t('views.application.form.roleSettings.placeholder', {
                         data: '{data}',
                         question: '{question}',
+                        memory: '{memory}',
                       })
                     "
                   />
@@ -985,7 +986,7 @@ const optimizationPrompt =
 
 const longTermPrompt =
   t('views.application.longTermMemory.tips1') +
-  '{{memory}}' +
+  '{memory}' +
   t('views.application.longTermMemory.tips2')
 
 const collapseData = reactive({
@@ -1056,7 +1057,7 @@ const applicationForm = ref<ApplicationFormType>({
   long_term_enable: false,
   long_term_model_id: '',
   long_term_model_params_setting: {},
-  long_term_trigger_setting: {},
+  long_term_trigger_setting: { rounds: 10 },
   long_term_trigger_type: 'ROUND',
 })
 
@@ -1206,8 +1207,7 @@ function openLongTermConfigDialog() {
 
 function switchLongTerm() {
   if (applicationForm.value.long_term_enable) {
-    applicationForm.value.model_setting.system =
-      applicationForm.value.model_setting.system || longTermPrompt
+    applicationForm.value.model_setting.system = applicationForm.value.model_setting.system
   }
 }
 

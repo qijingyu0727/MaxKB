@@ -6,21 +6,20 @@
     @date：2024/6/11 10:02
     @desc:
 """
-from typing import List
-
-from application.flow.compare.compare import Compare
+from .compare import Compare
 
 
 class ContainCompare(Compare):
 
-    def support(self, node_id, fields: List[str], source_value, compare, target_value):
-        if compare == 'contain':
-            return True
-
     def compare(self, source_value, compare, target_value):
+        target_value = str(target_value)
+
         if isinstance(source_value, str):
-            return str(target_value) in source_value
+            return target_value in source_value
         elif isinstance(source_value, list):
-            return any([str(item) == str(target_value) for item in source_value])
+            for item in source_value:
+                if str(item) == target_value:
+                    return True
+            return False
         else:
-            return str(target_value) in str(source_value)
+            return target_value in str(source_value)

@@ -25,7 +25,7 @@ from application.chat_pipeline.step.chat_step.i_chat_step import IChatStep, Post
 from application.flow.tools import Reasoning, mcp_response_generator, get_tools
 from application.long_term_memory import extract_long_term_memory
 from application.models import ApplicationChatUserStats, ChatUserType, Application, ApplicationApiKey, \
-    ApplicationAccessToken, ApplicationLongTermMemory, ChatRecord
+    ApplicationAccessToken, ApplicationLongTermMemory
 from common.exception.app_exception import AppApiException
 from common.utils.logger import maxkb_logger
 from common.utils.rsa_util import rsa_long_decrypt
@@ -142,12 +142,16 @@ def event_content(response,
                                                                       'node_type': 'ai-chat-node'})
         if not manage.debug:
             add_access_num(chat_user_id, chat_user_type, manage.context.get('application_id'))
-    except Exception as e:
-        maxkb_logger.error(f'{str(e)}:{traceback.format_exc()}')
-        all_text = 'Exception:' + str(e)
+    except BaseException as e:
+        if isinstance(e, GeneratorExit):
+            maxkb_logger.error(f'Generator was closed (client disconnected)')
+        else:
+            maxkb_logger.error(f'{str(e)}:{traceback.format_exc()}')
+            all_text = 'Exception:' + str(e)
         write_context(step, manage, 0, 0, all_text)
         post_response_handler.handler(chat_id, chat_record_id, paragraph_list, problem_text,
-                                      all_text, manage, step, padding_problem_text, reasoning_content='')
+                                      all_text, manage, step, padding_problem_text,
+                                      reasoning_content=reasoning_content if reasoning_content_enable else '')
         if not manage.debug:
             add_access_num(chat_user_id, chat_user_type, manage.context.get('application_id'))
         yield manage.get_base_to_response().to_stream_chunk_response(chat_id, str(chat_record_id), 'ai-chat-node',
@@ -158,7 +162,6 @@ def event_content(response,
                                                                             'node_type': 'ai-chat-node',
                                                                             'real_node_id': 'ai-chat-node',
                                                                             'reasoning_content': ''})
-
 
 
 class BaseChatStep(IChatStep):
@@ -184,8 +187,10 @@ class BaseChatStep(IChatStep):
                 skill_tool_ids=None,
                 mcp_output_enable=True,
                 **kwargs):
-        chat_model = get_model_instance_by_model_workspace_id(model_id, workspace_id,
-                                                              **(model_params_setting or {})) if model_id is not None else None
+        chat_model = get_model_instance_by_model_workspace_id(
+            model_id, workspace_id,
+            **(model_params_setting or {})
+        ) if model_id is not None else None
         if stream:
             return self.execute_stream(message_list, chat_id, problem_text, post_response_handler, chat_model,
                                        paragraph_list,
@@ -210,8 +215,13 @@ class BaseChatStep(IChatStep):
 
     def get_details(self, manage, **kwargs):
         # 提取长期记忆
-        extract_long_term_memory.delay(
-            manage.context.get('workspace_id'), manage.context.get('application_id'), manage.context.get('chat_user_id')
+        extract_long_term_memory.apply_async(
+            args=(
+                manage.context.get('workspace_id'),
+                manage.context.get('application_id'),
+                manage.context.get('chat_user_id'),
+            ),
+            countdown=1,
         )
         return {
             'status': self.status,
@@ -383,6 +393,7 @@ class BaseChatStep(IChatStep):
                 if isinstance(msg, SystemMessage):
                     if isinstance(msg.content, str):
                         user_system_prompt = msg.content.replace('{memory}', memory)
+                        msg.content = user_system_prompt
                     elif isinstance(msg.content, list):
                         user_system_prompt = ''.join(
                             item.get('text', '') if isinstance(item, dict) else str(item)

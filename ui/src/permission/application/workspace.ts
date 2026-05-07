@@ -38,15 +38,30 @@ const workspace = {
       [
         new ComplexPermission(
           [RoleConst.USER],
-          [PermissionConst.APPLICATION.getKnowledgeWorkspaceResourcePermission(source_id)],
+          [PermissionConst.APPLICATION.getApplicationWorkspaceResourcePermission(source_id)],
           [],
           'AND',
         ),
         RoleConst.WORKSPACE_MANAGE.getWorkspaceRole,
-        PermissionConst.APPLICATION_RELATE_RESOURCE_VIEW.getKnowledgeWorkspaceResourcePermission(
+        PermissionConst.APPLICATION_RELATE_RESOURCE_VIEW.getApplicationWorkspaceResourcePermission(
           source_id,
         ),
         PermissionConst.APPLICATION_RELATE_RESOURCE_VIEW.getWorkspacePermissionWorkspaceManageRole,
+      ],
+      'OR',
+    ),
+  publish: (source_id: string) =>
+    hasPermission(
+      [
+        new ComplexPermission(
+          [RoleConst.USER],
+          [PermissionConst.APPLICATION.getApplicationWorkspaceResourcePermission(source_id)],
+          [],
+          'AND',
+        ),
+        RoleConst.WORKSPACE_MANAGE.getWorkspaceRole,
+        PermissionConst.APPLICATION_PUBLISH.getApplicationWorkspaceResourcePermission(source_id),
+        PermissionConst.APPLICATION_PUBLISH.getWorkspacePermissionWorkspaceManageRole,
       ],
       'OR',
     ),

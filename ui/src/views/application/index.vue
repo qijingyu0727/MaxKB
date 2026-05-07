@@ -3,7 +3,7 @@
     <template #left>
       <h4 class="p-12-16 pb-0 mt-12">{{ $t('views.application.title') }}</h4>
 
-      <folder-tree
+      <FolderVirtualizedTree
         :source="SourceTypeEnum.APPLICATION"
         :data="folderList"
         :currentNodeKey="folder.currentFolder?.id"
@@ -400,9 +400,9 @@ import { onMounted, ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { CheckboxValueType } from 'element-plus'
 import CreateApplicationDialog from '@/views/application/component/CreateApplicationDialog.vue'
-import CreateFolderDialog from '@/components/folder-tree/CreateFolderDialog.vue'
+import CreateFolderDialog from '@/components/folder-virtualized-tree/CreateFolderDialog.vue'
 import CopyApplicationDialog from '@/views/application/component/CopyApplicationDialog.vue'
-import MoveToDialog from '@/components/folder-tree/MoveToDialog.vue'
+import MoveToDialog from '@/components/folder-virtualized-tree/MoveToDialog.vue'
 import ResourceAuthorizationDrawer from '@/components/resource-authorization-drawer/index.vue'
 import ResourceTriggerDrawer from '@/views/trigger/ResourceTriggerDrawer.vue'
 import TemplateStoreDialog from '@/views/application/template-store/TemplateStoreDialog.vue'

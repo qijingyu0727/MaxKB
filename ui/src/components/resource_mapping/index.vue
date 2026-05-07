@@ -64,7 +64,7 @@
           :placeholder="$t('common.search')"
           style="width: 220px"
           clearable
-          @keyup.enter="pageResourceMapping()"
+          @keyup.enter="currentTab === 'dependency' ? pageMappingResource() : pageResourceMapping()"
         />
         <el-input
           v-if="searchType === 'user_name'"
@@ -72,7 +72,7 @@
           :placeholder="$t('common.search')"
           style="width: 220px"
           clearable
-          @keyup.enter="pageResourceMapping()"
+          @keyup.enter="currentTab === 'dependency' ? pageMappingResource() : pageResourceMapping()"
         />
         <el-select
           v-else-if="searchType === 'source_type'"
@@ -93,12 +93,7 @@
           <el-option :label="$t('views.model.title')" value="MODEL" />
         </el-select>
       </div>
-      <el-radio-group
-        v-if="supportDependency"
-        v-model="currentTab"
-        class="app-radio-button-group"
-        @change="handleTabChange"
-      >
+      <el-radio-group v-model="currentTab" class="app-radio-button-group" @change="handleTabChange">
         <el-radio-button
           v-for="item in tabList"
           :key="item.value"
@@ -472,16 +467,6 @@ const apiType = computed(() => {
   }
 })
 
-const supportDependency = computed(() => {
-  if (currentSourceType.value === 'MODEL') {
-    return false
-  }
-  if (currentSourceType.value === 'TOOL' && currentSource.value.tool_type !== 'WORKFLOW') {
-    return false
-  }
-  return true
-})
-
 const showWorkspace = computed(() => (user.isPE() || user.isEE()) && route.path.includes('shared'))
 
 const currentTab = ref('dependency') // 'dependency' 代表“我依赖的”， 'dependent' 代表“依赖我的”
@@ -519,6 +504,8 @@ const currentSourceName = computed(() => {
     return t('views.tool.title')
   } else if (currentSourceType.value === 'MODEL') {
     return t('views.model.title')
+  } else if (currentSourceType.value === 'APPLICATION') {
+    return t('views.application.title')
   } else {
     return t('views.knowledge.title')
   }
@@ -593,7 +580,10 @@ const open = (source: string, data: any) => {
   currentSourceId.value = data.id
   currentSource.value = data
 
-  if (!supportDependency.value) {
+  // 根据资源类型设置默认 tab
+  if (currentSourceType.value === 'MODEL') {
+    currentTab.value = 'dependent'
+  } else if (currentSourceType.value === 'TOOL' && data.tool_type !== 'WORKFLOW') {
     currentTab.value = 'dependent'
   } else {
     currentTab.value = 'dependency'
