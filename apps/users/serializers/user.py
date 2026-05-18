@@ -7,6 +7,7 @@
     @desc:
 """
 import datetime
+import json
 import os
 import random
 import re
@@ -16,6 +17,7 @@ from django.core.cache import cache
 from django.core.mail.backends.smtp import EmailBackend
 from django.db import transaction
 from django.db.models import Q, QuerySet
+from django.utils import translation
 from rest_framework import serializers
 import uuid_utils.compat as uuid
 
@@ -26,10 +28,12 @@ from common.constants.permission_constants import RoleConstants, Auth, ResourceA
 from common.database_model_manage.database_model_manage import DatabaseModelManage
 from common.db.search import page_search
 from common.exception.app_exception import AppApiException
-from common.utils.common import valid_license, password_encrypt, get_random_chars
+from common.utils.common import valid_license, password_encrypt, password_verify, get_random_chars
 from common.utils.rsa_util import decrypt
 from maxkb import settings
+from maxkb.const import CONFIG
 from maxkb.conf import PROJECT_DIR
+from maxkb.const import CONFIG
 from system_manage.models import SystemSetting, SettingType, AuthTargetType, WorkspaceUserResourcePermission
 from users.models import User
 from django.utils.translation import gettext_lazy as _, to_locale
@@ -116,7 +120,8 @@ class UserProfileSerializer(serializers.Serializer):
             'source': user.source,
             'role': auth.role_list,
             'permissions': auth.permission_list,
-            'is_edit_password': user.password == 'd880e722c47a34d8e9fce789fc62389d' if user.source == 'LOCAL' else False,
+            'is_edit_password': password_verify(CONFIG.get('DEFAULT_PASSWORD', 'MaxKB@123..'),
+                                                user.password) if user.source == 'LOCAL' else False,
             'language': user.language,
             'workspace_list': workspace_list,
             'role_name': role_name
@@ -511,13 +516,23 @@ class UserManageSerializer(serializers.Serializer):
         def re_password(self, instance, with_valid=True):
             if with_valid:
                 self.is_valid(raise_exception=True)
+                encrypted_data = instance.get("encryptedData", "")
+                if encrypted_data:
+                    try:
+                        decrypted_raw = decrypt(encrypted_data)
+                        # decrypt 可能返回非 JSON 字符串，防护解析异常
+                        decrypted_data = json.loads(decrypted_raw) if decrypted_raw else {}
+                        if isinstance(decrypted_data, dict):
+                            instance.update(decrypted_data)
+                    except Exception as e:
+                        raise AppApiException(500, _("Invalid encrypted data"))
                 UserManageSerializer.RePasswordInstance(data=instance).is_valid(raise_exception=True)
             user = User.objects.filter(id=self.data.get('id')).first()
             user.password = password_encrypt(instance.get('password'))
             user.save()
             return True
 
-    def get_user_list(self, workspace_id):
+    def get_user_list(self, workspace_id, nick_name):
         """
         获取用户列表
         :param workspace_id: 工作空间ID
@@ -534,7 +549,11 @@ class UserManageSerializer(serializers.Serializer):
         else:
             user_ids = User.objects.values_list('id', flat=True)
 
-        users = User.objects.filter(id__in=user_ids).values('id', 'nick_name')
+        query_set = User.objects.filter(id__in=user_ids)
+        if nick_name:
+            query_set = query_set.filter(nick_name__contains=nick_name)
+
+        users = query_set.values('id', 'nick_name')[:200]
         return list(users)
 
     def get_user_members(self, workspace_id):
@@ -1148,7 +1167,10 @@ class SwitchLanguageSerializer(serializers.Serializer):
     def switch(self):
         self.is_valid(raise_exception=True)
         language = self.data.get('language')
-        support_language_list = ['zh-CN', 'zh-Hant', 'en-US']
-        if not support_language_list.__contains__(language):
-            raise AppApiException(500, _('language only support:') + ','.join(support_language_list))
+        support_language_list = CONFIG.get_languages()
+        #这个是一个list 完事是对象 key是语言的key value是语言的value  我只需要提取语言的key就行
+        support_keys = [lang[0] for lang in support_language_list]
+        # support_language_list = ['zh-CN', 'zh-Hant', 'en-US'] en_US,ja,zh_CN,zh_Hant
+        if not support_keys.__contains__(language):
+            raise AppApiException(500, _('language only support:') + ','.join(support_keys))
         QuerySet(User).filter(id=self.data.get('user_id')).update(language=language)
