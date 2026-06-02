@@ -45,7 +45,6 @@ export default {
     inaccurate: 'Answer is inaccurate',
     complete: 'Content is complete',
     irrelevantAnswer: 'Answer is irrelevant',
-    other: 'Other',
     placeholder: 'Tell us more about your relevant experiences',
   },
   tip: {
@@ -145,4 +144,9 @@ export default {
   editTitle: 'Edit Title',
   share: 'Share',
   copyLinkText: 'Copy Link',
+  userInputSetting: 'External Parameter Setting (up to 3 can be displayed)',
+  executing: 'Executing',
+  userInputSettingTip:
+    'Only Model, Knowledge, Switch, Date, TreeSelect, Single Select, and Multi Select component types are supported',
+  remainingParamsMenuTitle: 'Menu Title for Remaining Parameters',
 }

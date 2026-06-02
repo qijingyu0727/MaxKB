@@ -133,8 +133,20 @@
         </el-form-item>
       </el-form>
     </el-card>
-    <AddFormCollect ref="addFormCollectRef" :addFormField="addFormField"></AddFormCollect>
-    <EditFormCollect ref="editFormCollectRef" :editFormField="editFormField"></EditFormCollect>
+    <AddFormCollect
+      ref="addFormCollectRef"
+      :addFormField="addFormField"
+      :nodeModel="nodeModel"
+      :currentNodeFields="form_data.form_field_list"
+      :enableVisibility="enableVisibility"
+    ></AddFormCollect>
+    <EditFormCollect
+      ref="editFormCollectRef"
+      :editFormField="editFormField"
+      :nodeModel="nodeModel"
+      :currentNodeFields="form_data.form_field_list"
+      :enableVisibility="enableVisibility"
+    />
   </NodeContainer>
 </template>
 <script setup lang="ts">
@@ -142,14 +154,43 @@ import NodeContainer from '@/workflow/common/NodeContainer.vue'
 import AddFormCollect from '@/workflow/common/AddFormCollect.vue'
 import EditFormCollect from '@/workflow/common/EditFormCollect.vue'
 import { type FormInstance } from 'element-plus'
-import { ref, onMounted, computed, provide } from 'vue'
+import { ref, onMounted, computed, provide, inject } from 'vue'
 import { input_type_list } from '@/components/dynamics-form/constructor/data'
+import { WorkflowMode } from '@/enums/application'
 import { MsgError } from '@/utils/message'
 import { set, cloneDeep } from 'lodash'
+import { useRoute } from 'vue-router'
+import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 import Sortable from 'sortablejs'
 import { t } from '@/locales'
 const props = defineProps<{ nodeModel: any }>()
 provide('getModel', () => props.nodeModel)
+const workflowMode = inject('workflowMode', WorkflowMode.Application) as WorkflowMode
+const enableVisibility = computed(
+  () => workflowMode === WorkflowMode.Application || workflowMode === WorkflowMode.ApplicationLoop,
+)
+const getResourceDetail = inject('getResourceDetail') as any
+const route = useRoute()
+const apiType = computed(() => {
+  if (route.path.includes('resource-management')) {
+    return 'systemManage'
+  } else {
+    return 'workspace'
+  }
+})
+const resource = getResourceDetail()
+
+provide('getSelectModelList', (params: any) => {
+  const obj =
+    apiType.value === 'systemManage'
+      ? { ...params, workspace_id: resource.value?.workspace_id }
+      : { ...params }
+  return loadSharedApi({ type: 'model', systemType: apiType.value }).getSelectModelList(obj)
+})
+
+provide('getModelParamsForm', (model_id: string) => {
+  return loadSharedApi({ type: 'model', systemType: apiType.value }).getModelParamsForm(model_id)
+})
 const formNodeFormRef = ref<FormInstance>()
 const tableRef = ref()
 const editFormField = (form_field_data: any, field_index: number) => {
@@ -237,7 +278,35 @@ const getDefaultValue = (row: any) => {
 }
 
 const validate = () => {
-  return formNodeFormRef.value?.validate()
+  const v_list = [formNodeFormRef.value?.validate()]
+
+  const upstreamNodes = props.nodeModel.get_up_node_field_list(true, true)
+  if (props.nodeModel.graphModel.get_up_node_field_list) {
+    const outer = props.nodeModel.graphModel.get_up_node_field_list(true, true)
+    outer.forEach((item: any) => upstreamNodes.push(item))
+  }
+
+  for (const field of form_data.value.form_field_list) {
+    for (const cond of field.visibility_rules?.conditions || []) {
+      if (!cond.field || cond.field.length < 2 || !cond.field[0] || !cond.field[1]) continue
+      if (cond.field[0] === props.nodeModel.id) {
+        // 同节点：查 form_field_list
+        if (!form_data.value.form_field_list.some((f: any) => f.field === cond.field[1])) {
+          v_list.push(Promise.reject(t('workflow.variable.NoReferencing')))
+        }
+      } else {
+        // 跨节点：查上游（含循环外层 graph 的节点）
+        const nodeEntry = upstreamNodes.find((n: any) => n.value === cond.field[0])
+        if (!nodeEntry || !nodeEntry.children?.some((c: any) => c.value === cond.field[1])) {
+          v_list.push(Promise.reject(t('workflow.variable.NoReferencing')))
+        }
+      }
+    }
+  }
+
+  return Promise.all(v_list).catch((err) =>
+    Promise.reject({ node: props.nodeModel, errMessage: err }),
+  )
 }
 function submitDialog(val: string) {
   set(props.nodeModel.properties.node_data, 'form_content_format', val)

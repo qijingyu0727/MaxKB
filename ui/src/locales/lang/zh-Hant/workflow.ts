@@ -118,7 +118,6 @@ export default {
     classify: {
       aiCapability: 'AI 能力',
       businessLogic: '業務邏輯',
-      other: '其他',
       dataProcessing: '數據處理',
     },
     startNode: {
@@ -127,6 +126,11 @@ export default {
       currentTime: '當前時間',
     },
     baseNode: {
+      visibilitySetting: {
+        label: '顯隱設置',
+        showCondition‌: '顯示條件',
+        hideCondition‌: '隱藏條件',
+      },
       fileUpload: {
         label: '文件上傳',
         tooltip: '開啟後，問答頁面會顯示上傳文件的按鈕。',
@@ -438,7 +442,6 @@ export default {
     intentNode: {
       label: '意圖識別',
       text: '將用戶問題與用戶預設的意圖分類進行匹配',
-      other: '其他',
       error2: '意圖重複',
       placeholder: '請選擇分類項',
       classify: {

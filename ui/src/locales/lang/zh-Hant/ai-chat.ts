@@ -45,7 +45,6 @@ export default {
     inaccurate: '回答不準確',
     complete: '內容完善',
     irrelevantAnswer: '回答不相關',
-    other: '其他',
     placeholder: '告訴我們更多關於你的相關體驗',
   },
   tip: {
@@ -143,4 +142,8 @@ export default {
   editTitle: '編輯標題',
   share: '分享',
   copyLinkText: '複製連結',
+  userInputSetting: '外置參數設定（最多可顯示3個）',
+  executing: '正在執行',
+  userInputSettingTip: '僅支援模型、知識庫、開關、日期、樹形選項卡、單選框、多選框元件類型',
+  remainingParamsMenuTitle: '其他參數收納選單標題',
 }

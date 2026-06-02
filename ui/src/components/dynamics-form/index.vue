@@ -36,11 +36,12 @@
 import type { Dict } from '@/api/type/common'
 import FormItem from '@/components/dynamics-form/FormItem.vue'
 import type { FormField } from '@/components/dynamics-form/type'
-import { ref, onBeforeMount, watch, type Ref, nextTick } from 'vue'
+import { ref, onBeforeMount, watch, type Ref, nextTick, computed } from 'vue'
 import type { FormInstance } from 'element-plus'
 import type Result from '@/request/Result'
 import _ from 'lodash'
 import { get, post, put, del } from '@/request/index'
+import { computeVisibilityMap } from './visibility'
 const request = {
   get,
   post,
@@ -80,6 +81,9 @@ const formFieldList = ref<Array<FormField>>([])
 const ruleFormRef = ref<FormInstance>()
 
 const formFieldRef = ref<Array<InstanceType<typeof FormItem>>>([])
+
+const visibilityMap = computed(() => computeVisibilityMap(formFieldList.value, formValue.value))
+
 /**
  * 当前 field是否展示
  * @param field
@@ -102,6 +106,12 @@ const show = (field: FormField) => {
       }
     }
   }
+
+  // new
+  if (field.visibility_rules?.node_id) {
+    return visibilityMap.value[field.field] ?? true
+  }
+
   return true
 }
 
@@ -255,7 +265,9 @@ const getFormDefaultValue = (fieldList: Array<any>, form_data?: any) => {
             if (typeof form_data[item.field] === 'string') {
               return i[value_field] === form_data[item.field]
             } else {
-              return form_data[item.field].indexOf([value_field]) === -1
+              return form_data[item.field]
+                ? form_data[item.field].indexOf([value_field]) === -1
+                : false
             }
           })
           if (find) {
@@ -280,6 +292,11 @@ const getFormDefaultValue = (fieldList: Array<any>, form_data?: any) => {
  * 校验函数
  */
 const validate = () => {
+  for (const field of formFieldList.value) {
+    if (!show(field)) {
+      formValue.value[field.field] = null
+    }
+  }
   return Promise.all([
     ...formFieldRef.value.map((item) => item.validate()),
     ruleFormRef.value ? ruleFormRef.value.validate() : Promise.resolve(),

@@ -6,6 +6,7 @@ export default {
   setting: {
     vectorization: '向量化',
     sync: '同步',
+    tokenize: '分词索引',
   },
   tip: {
     professionalMessage: '社群版最多支援 50 個知識庫，如需擁有更多知識庫，請升級為專業版。',
@@ -106,5 +107,15 @@ export default {
     message2: '新的處理方式將應用於後續所有導入的文件。',
     tip: '注意：轉換後不可撤回。',
     comfirm: '確定轉換為工作流知識庫？轉換後無法回退，請謹慎操作。',
+  },
+  customSegmentation: {
+    title: '自定義分段',
+    tip: '避免專業術語被拆分，提升全文檢索的精准度與召回率',
+    create: '創建詞語',
+    quickCreate: '快速創建詞語',
+    word: '詞語',
+    wordplaceholder: '請輸入需要保留的专业术语/专属词汇，一行一个',
+    wordRequiredMessage: '请输入词语',
+    wordIndexing: '分詞索引',
   },
 }

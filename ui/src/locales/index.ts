@@ -1,58 +1,54 @@
-import {useLocalStorage, usePreferredLanguages} from '@vueuse/core'
-import {computed} from 'vue'
-import {createI18n} from 'vue-i18n'
+import { useLocalStorage, usePreferredLanguages } from '@vueuse/core'
+import { computed } from 'vue'
+import { createI18n } from 'vue-i18n'
 
 // 导入语言文件
-const langModules = import.meta.glob('./lang/*/index.ts', {eager: true}) as Record<
+const langModules = import.meta.glob('./lang/*/index.ts', { eager: true }) as Record<
   string,
-  () => Promise<{ default: object }>
+  { default: Record<string, any> }
 >
 
-// 定义 Recordable 类型
 type Recordable<T = any> = Record<string, T>
 
-const langModuleMap = new Map<string, object>()
-
-export const langCode: Array<string> = []
-
+const langModuleMap = new Map<string, Record<string, any>>()
+export const langCode: string[] = []
 export const localeConfigKey = 'MaxKB-locale'
 
-// 获取浏览器默认语言环境
 const languages = usePreferredLanguages()
 
 export function getBrowserLang() {
-  const browserLang = navigator.language ? navigator.language : languages.value[0]
-  let defaultBrowserLang = ''
+  const browserLang = navigator.language || languages.value[0] || 'en-US'
+
   if (browserLang === 'zh-HK' || browserLang === 'zh-TW') {
-    defaultBrowserLang = 'zh-Hant'
-  } else if (browserLang === 'zh-CN') {
-    defaultBrowserLang = 'zh-CN'
-  } else {
-    defaultBrowserLang = 'en-US'
+    return 'zh-Hant'
   }
-  return defaultBrowserLang
+
+  if (browserLang === 'zh-CN') {
+    return 'zh-CN'
+  }
+
+  return 'en-US'
 }
 
-// 生成语言模块列表
-const generateLangModuleMap = () => {
-  const fullPaths = Object.keys(langModules)
-  fullPaths.forEach((fullPath) => {
-    const k = fullPath.replace('./lang', '')
-    const startIndex = 1
-    const lastIndex = k.lastIndexOf('/')
-    const code = k.substring(startIndex, lastIndex)
-    langCode.push(code)
-    langModuleMap.set(code, langModules[fullPath])
+function generateLangModuleMap() {
+  if (langModuleMap.size > 0) return
+
+  Object.keys(langModules).forEach((fullPath) => {
+    const code = fullPath.replace('./lang/', '').replace('/index.ts', '')
+    const module = langModules[fullPath]
+    langModuleMap.set(code, module.default)
+    if (!langCode.includes(code)) {
+      langCode.push(code)
+    }
   })
 }
 
-// 导出 Message
 const importMessages = computed(() => {
   generateLangModuleMap()
 
   const message: Recordable = {}
-  langModuleMap.forEach((value: any, key) => {
-    message[key] = value.default
+  langModuleMap.forEach((value, key) => {
+    message[key] = value
   })
   return message
 })
@@ -62,23 +58,84 @@ export const i18n = createI18n({
   locale: useLocalStorage(localeConfigKey, getBrowserLang()).value || getBrowserLang(),
   fallbackLocale: getBrowserLang(),
   messages: importMessages.value,
-  globalInjection: true
+  globalInjection: true,
 })
 
-export const langList = computed(() => {
-  if (langModuleMap.size === 0) generateLangModuleMap()
+// 外置语言包目录（相对于 public 目录）
+const EXTERNAL_LOCALES_DIR = `${window.MaxKB?.prefix || '/chat'}/locales`
 
-  const list: any = []
-  langModuleMap.forEach((value: any, key) => {
+async function discoverExternalLocales(): Promise<string[]> {
+  try {
+    const response = await fetch(`${EXTERNAL_LOCALES_DIR}/index.json`)
+    if (!response.ok) {
+      console.warn('Failed to fetch external locales index, returning empty array')
+      return []
+    }
+    if (!response.headers.get('content-type')?.includes('application/json')) {
+      return []
+    }
+
+    const index = await response.json()
+    return Array.isArray(index.locales) ? index.locales : []
+  } catch (error) {
+    console.warn('Error discovering external locales:', error)
+    return []
+  }
+}
+
+async function loadExternalLocale(localeCode: string): Promise<Record<string, any> | null> {
+  try {
+    const response = await fetch(`${EXTERNAL_LOCALES_DIR}/${localeCode}.json`)
+    if (!response.ok) {
+      return null
+    }
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+export async function initExternalLocales(): Promise<void> {
+  const availableLocales = await discoverExternalLocales()
+
+  for (const code of availableLocales) {
+    if (langModuleMap.has(code)) continue
+
+    const data = await loadExternalLocale(code)
+    if (!data) continue
+
+    i18n.global.setLocaleMessage(code, data)
+
+    if (!langCode.includes(code)) {
+      langCode.push(code)
+    }
+  }
+}
+
+export const langList = computed(() => {
+  generateLangModuleMap()
+
+  const list: Array<{ label: string; value: string }> = []
+
+  langModuleMap.forEach((value, key) => {
     list.push({
-      label: value.default.lang,
-      value: key
+      label: value.lang || key,
+      value: key,
+    })
+  })
+
+  langCode.forEach((locale) => {
+    if (langModuleMap.has(locale)) return
+    const messages = i18n.global.getLocaleMessage(locale) as Record<string, any>
+    list.push({
+      label: messages?.lang || locale,
+      value: locale,
     })
   })
 
   return list
 })
 
-export const {t} = i18n.global
+export const { t } = i18n.global
 
 export default i18n

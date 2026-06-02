@@ -8,8 +8,8 @@ export default {
     migration: '遷移',
     cancelGenerateQuestion: '取消生成問題',
     cancelVectorization: '取消向量化',
+    cancelTokenize: '取消分词索引',
     cancelGenerate: '取消生成',
-    export: '匯出',
     exportDocument: '匯出文檔',
     exportKnowledge: '匯出知識庫',
     download: '下載原文件',
@@ -131,6 +131,7 @@ export default {
     PENDING: '排隊中',
     GENERATE: '生成中',
     SYNC: '同步中',
+    TOKENIZE: '分词索引中',
     finish: '完圓',
   },
   enableStatus: {

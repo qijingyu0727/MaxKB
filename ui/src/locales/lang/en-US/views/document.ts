@@ -8,8 +8,8 @@ export default {
     migration: 'Move',
     cancelGenerateQuestion: 'Cancel Generating Questions',
     cancelVectorization: 'Cancel Vectorization',
+    cancelTokenize: 'Cancel Tokenize',
     cancelGenerate: 'Cancel Generation',
-    export: 'Export to',
     exportDocument: 'Export Document',
     exportKnowledge: 'Export Knowledge',
     download: 'Download',
@@ -138,6 +138,7 @@ export default {
     PENDING: 'Queuing',
     GENERATE: 'Generating',
     SYNC: 'Syncing',
+    TOKENIZE: 'Tokenizing',
     finish: 'Finish',
   },
   enableStatus: {

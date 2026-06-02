@@ -14,6 +14,10 @@
       label-position="top"
       require-asterisk-position="right"
       :input_type_list="inputTypeList"
+      :nodeModel="nodeModel"
+      :currentNodeFields="currentNodeFields"
+      :currentEditingIndex="isEdit ? (currentIndex ?? undefined) : (currentNodeFields?.length ?? 0)"
+      :enableVisibility="true"
       ref="DynamicsFormConstructorRef"
     ></DynamicsFormConstructor>
     <template #footer>
@@ -34,6 +38,11 @@ import type { FormField } from '@/components/dynamics-form/type'
 import _ from 'lodash'
 import { t } from '@/locales'
 const emit = defineEmits(['refresh'])
+
+const props = defineProps<{
+  nodeModel?: any
+  currentNodeFields?: Array<any>
+}>()
 
 const DynamicsFormConstructorRef = ref()
 const loading = ref<boolean>(false)
@@ -136,7 +145,7 @@ const inputTypeList = ref([
   { label: t('dynamicsForm.input_type_list.MultiRow'), value: 'MultiRowConstructor' },
   { label: t('dynamicsForm.input_type_list.Model'), value: 'ModelConstructor' },
   { label: t('dynamicsForm.input_type_list.Knowledge'), value: 'KnowledgeConstructor' },
-  { label: t('dynamicsForm.input_type_list.TreeSelect'), value: 'TreeSelectConstructor' },
+  { label: t('dynamicsForm.TreeSelect.label'), value: 'TreeSelectConstructor' },
 ])
 
 const dialogVisible = ref<boolean>(false)

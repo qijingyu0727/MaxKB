@@ -302,6 +302,98 @@ const DocumentRouter = {
       component: () => import('@/views/problem/index.vue'),
     },
     {
+      path: 'termbase',
+      name: 'Termbase',
+      meta: {
+        icon: 'app-custom-segmentation',
+        iconActive: 'app-custom-segmentation',
+        title: 'views.knowledge.customSegmentation.title',
+        active: 'termbase',
+        parentPath: '/knowledge/:id/:folderId/:type',
+        parentName: 'KnowledgeDetail',
+        group: 'KnowledgeDetail',
+        permission: [
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'shared') {
+              return RoleConst.ADMIN
+            } else if (to.params.folderId == 'resource-management') {
+            } else {
+              return new ComplexPermission(
+                [RoleConst.USER],
+                [
+                  PermissionConst.KNOWLEDGE.getKnowledgeWorkspaceResourcePermission(
+                    to ? to.params.id : '',
+                  ),
+                ],
+                [],
+                'AND',
+              )
+            }
+          },
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'shared') {
+              return RoleConst.ADMIN
+            } else if (to.params.folderId == 'resource-management') {
+            } else {
+              return RoleConst.WORKSPACE_MANAGE.getWorkspaceRole()
+            }
+          },
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'shared') {
+              return PermissionConst.SHARED_KNOWLEDGE_TERMBASE_READ
+            } else if (to.params.folderId == 'resource-management') {
+            } else {
+              return PermissionConst.KNOWLEDGE_TERMBASE_READ.getKnowledgeWorkspaceResourcePermission(
+                to ? to.params.id : '',
+              )
+            }
+          },
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'shared') {
+              return RoleConst.ADMIN
+            } else if (to.params.folderId == 'resource-management') {
+            } else {
+              return PermissionConst.KNOWLEDGE_TERMBASE_READ.getWorkspacePermissionWorkspaceManageRole()
+            }
+          },
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'share') {
+              return new ComplexPermission(
+                [RoleConst.EXTENDS_USER.getWorkspaceRole()],
+                [PermissionConst.KNOWLEDGE_TERMBASE_READ.getWorkspacePermission()],
+                [],
+                'AND',
+              )
+            }
+          },
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'share') {
+              return RoleConst.USER.getWorkspaceRole()
+            }
+          },
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'resource-management') {
+              return RoleConst.ADMIN
+            }
+          },
+          () => {
+            const to: any = get_next_route()
+            if (to.params.folderId == 'resource-management') {
+              return PermissionConst.RESOURCE_KNOWLEDGE_TERMBASE_READ
+            }
+          },
+        ],
+      },
+      component: () => import('@/views/termbase/index.vue'),
+    },
+    {
       path: 'hit-test',
       name: 'KnowledgeHitTest',
       meta: {

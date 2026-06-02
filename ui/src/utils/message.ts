@@ -6,7 +6,7 @@ export const MsgSuccess = (message: string) => {
     message: message,
     type: 'success',
     showClose: true,
-    duration: 3000
+    duration: 3000,
   })
 }
 
@@ -15,7 +15,7 @@ export const MsgInfo = (message: string) => {
     message: message,
     type: 'info',
     showClose: true,
-    duration: 3000
+    duration: 3000,
   })
 }
 
@@ -24,7 +24,7 @@ export const MsgWarning = (message: string) => {
     message: message,
     type: 'warning',
     showClose: true,
-    duration: 3000
+    duration: 3000,
   })
 }
 
@@ -33,21 +33,23 @@ export const MsgError = (message: string) => {
     message: message,
     type: 'error',
     showClose: true,
-    duration: 3000
+    duration: 3000,
   })
 }
 
 export const MsgAlert = (title: string, description: string, options?: any) => {
   const defaultOptions: object = {
     confirmButtonText: t('common.confirm'),
-    ...options
+    ...options,
   }
   return ElMessageBox.alert(description, title, defaultOptions)
 }
 
 /**
  * 删除知识库
- * @param 参数 message: {title, description,type}
+ * @param title
+ * @param description
+ * @param options
  */
 
 export const MsgConfirm = (title: string, description: string, options?: any) => {
@@ -55,7 +57,7 @@ export const MsgConfirm = (title: string, description: string, options?: any) =>
     showCancelButton: true,
     confirmButtonText: t('common.confirm'),
     cancelButtonText: t('common.cancel'),
-    ...options
+    ...options,
   }
   return ElMessageBox.confirm(description, title, defaultOptions)
 }

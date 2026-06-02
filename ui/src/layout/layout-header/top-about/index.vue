@@ -71,7 +71,7 @@
     >
       <el-button text @click="toUrl(theme.themeInfo?.forumUrl)">
         <AppIcon
-          iconName="app-help"
+          iconName="app-problems"
           class="cursor color-secondary"
           style="font-size: 20px"
         ></AppIcon>
@@ -102,7 +102,7 @@ function toUrl(url: string) {
     padding: 6px !important;
   }
   .el-button + .el-button {
-    margin-left: 4px !important;
+    margin-left: 8px !important;
   }
   .active {
     background-color: #ffffff;

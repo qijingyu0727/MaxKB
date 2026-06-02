@@ -124,11 +124,11 @@
                 style="font-size: 16px"
               ></AppIcon>
               <span v-if="paginationConfig.total" class="lighter">
-                {{ paginationConfig.total }} {{ $t('chat.question_count') }}
+                {{ paginationConfig.total }} {{ $t('aiChat.question_count') }}
               </span>
               <el-tooltip
                 effect="dark"
-                :content="$t('chat.share')"
+                :content="$t('aiChat.share')"
                 placement="top"
                 v-if="!showSelection"
               >
@@ -143,7 +143,7 @@
               </el-tooltip>
               <el-dropdown class="ml-8" v-if="!showSelection">
                 <el-button text>
-                  <AppIcon iconName="app-export" :title="$t('chat.exportRecords')"></AppIcon>
+                  <AppIcon iconName="app-export" :title="$t('aiChat.exportRecords')"></AppIcon>
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -245,6 +245,7 @@
 import { ref, onMounted, nextTick, computed, watch, provide } from 'vue'
 import { marked } from 'marked'
 import { saveAs } from 'file-saver'
+import sanitizeHtml from 'sanitize-html'
 import chatAPI from '@/api/chat/chat'
 import useStore from '@/stores'
 import useResize from '@/layout/hooks/useResize'
@@ -260,7 +261,9 @@ import HistoryPanel from '@/views/chat/component/HistoryPanel.vue'
 import { cloneDeep } from 'lodash'
 import { getFileUrl } from '@/utils/common'
 import PdfExport from '@/components/pdf-export/index.vue'
+import JSEncrypt from 'jsencrypt'
 
+const { user } = useStore()
 useResize()
 
 provide('scrollData', loadInfiniteScroll)
@@ -301,7 +304,12 @@ const openResetPassword = () => {
 }
 
 const handleResetPassword = (param: ResetCurrentUserPasswordRequest) => {
-  chatAPI.resetCurrentPassword(param).then(() => {
+  const JSEncryptCtor = (JSEncrypt as any)?.default ? (JSEncrypt as any).default : JSEncrypt
+  const js = new (JSEncryptCtor as any)()
+  js.setPublicKey(chatUser?.chat_profile?.rsaKey)
+  const jsonData = JSON.stringify(param)
+  const encryptedBase64 = js.encrypt(jsonData)
+  chatAPI.resetCurrentPassword({ encryptedData: encryptedBase64 }).then(() => {
     router.push({ name: 'login' })
   })
 }
@@ -315,7 +323,7 @@ const classObj = computed(() => {
 
 const newObj = {
   id: 'new',
-  abstract: t('chat.createChat'),
+  abstract: t('aiChat.createChat'),
 }
 const props = defineProps<{
   application_profile: any
@@ -342,7 +350,7 @@ const paginationConfig = ref({
 
 const currentRecordList = ref<any>([])
 const currentChatId = ref('new') // 当前历史记录Id 默认为'new'
-const currentChatName = ref(t('chat.createChat'))
+const currentChatName = ref(t('aiChat.createChat'))
 
 function refreshFieldTitle(chatId: string, abstract: string) {
   const find = chatLogData.value.find((item: any) => item.id == chatId)
@@ -355,7 +363,7 @@ function deleteLog(row: any) {
   chatAPI.deleteChat(row.id).then(() => {
     if (currentChatId.value === row.id) {
       currentChatId.value = 'new'
-      currentChatName.value = t('chat.createChat')
+      currentChatName.value = t('aiChat.createChat')
       paginationConfig.value.current_page = 1
       paginationConfig.value.total = 0
       currentRecordList.value = []
@@ -367,7 +375,7 @@ function deleteLog(row: any) {
 function clearChat() {
   chatAPI.clearChat(left_loading).then(() => {
     currentChatId.value = 'new'
-    currentChatName.value = t('chat.createChat')
+    currentChatName.value = t('aiChat.createChat')
     paginationConfig.value.current_page = 1
     paginationConfig.value.total = 0
     currentRecordList.value = []
@@ -405,7 +413,7 @@ function newChat() {
   }
   closeExecutionDetail()
   currentChatId.value = 'new'
-  currentChatName.value = t('chat.createChat')
+  currentChatName.value = t('aiChat.createChat')
 }
 
 const chatLogPagination = ref({
@@ -413,6 +421,7 @@ const chatLogPagination = ref({
   page_size: 20,
   current_page: 1,
 })
+
 function getChatLog(refresh?: boolean) {
   chatAPI
     .pageChat(chatLogPagination.value.current_page, chatLogPagination.value.page_size, left_loading)
@@ -426,7 +435,7 @@ function getChatLog(refresh?: boolean) {
         paginationConfig.value.total = 0
         currentRecordList.value = []
         currentChatId.value = 'new'
-        currentChatName.value = t('chat.createChat')
+        currentChatName.value = t('aiChat.createChat')
       }
     })
 }
@@ -529,7 +538,49 @@ async function exportHTML(): Promise<void> {
       return `# ${record.problem_text}\n\n${answerText}\n\n`
     })
     .join('\n')
-  const htmlContent: any = marked(markdownContent)
+  const rawHtmlContent = await marked(markdownContent)
+  const htmlContent = sanitizeHtml(rawHtmlContent, {
+    allowedTags: [
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'p',
+      'br',
+      'hr',
+      'blockquote',
+      'pre',
+      'code',
+      'em',
+      'strong',
+      'del',
+      'ul',
+      'ol',
+      'li',
+      'table',
+      'thead',
+      'tbody',
+      'tr',
+      'th',
+      'td',
+      'a',
+      'img',
+    ],
+    allowedAttributes: {
+      a: ['href', 'name', 'target', 'title'],
+      img: ['src', 'alt', 'title'],
+      code: ['class'],
+      th: ['align'],
+      td: ['align'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesByTag: {
+      img: ['http', 'https'],
+    },
+    allowProtocolRelative: false,
+  })
 
   const blob: Blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' })
   saveAs(blob, suggestedName)
@@ -554,7 +605,7 @@ const rightPanelDetail = ref<any>()
 
 async function openExecutionDetail(row: any) {
   rightPanelSize.value = 400
-  rightPanelTitle.value = t('chat.executionDetails.title')
+  rightPanelTitle.value = t('aiChat.executionDetails.title')
   rightPanelType.value = 'executionDetail'
   if (row.execution_details) {
     executionDetail.value = cloneDeep(row.execution_details)
@@ -565,7 +616,7 @@ async function openExecutionDetail(row: any) {
 }
 
 async function openKnowledgeSource(row: any) {
-  rightPanelTitle.value = t('chat.KnowledgeSource.title')
+  rightPanelTitle.value = t('aiChat.KnowledgeSource.title')
   rightPanelType.value = 'knowledgeSource'
   rightPanelDetail.value = row
   rightPanelSize.value = 400

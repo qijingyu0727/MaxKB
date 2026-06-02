@@ -45,7 +45,6 @@ export default {
     inaccurate: '回答不准确',
     complete: '内容完善',
     irrelevantAnswer: '回答不相关',
-    other: '其他',
     placeholder: '告诉我们更多关于你的相关体验',
   },
   tip: {
@@ -143,4 +142,8 @@ export default {
   editTitle: '编辑标题',
   share: '分享',
   copyLinkText: '复制链接',
+  userInputSetting: '外置参数设置（最多可显示3个）',
+  executing: '正在执行',
+  userInputSettingTip: '仅支持模型、知识库、开关、日期、树形选项卡、单选框、多选框组件类型',
+  remainingParamsMenuTitle: '其他参数收纳菜单标题',
 }

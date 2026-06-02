@@ -7,11 +7,13 @@
     @desc:
 """
 import re
-import uuid_utils.compat as uuid
-from typing import List
+import time
+from threading import RLock
+from typing import Dict, List, Tuple
 
 import jieba
 import jieba.posseg
+import uuid_utils.compat as uuid
 
 jieba_word_list_cache = [chr(item) for item in range(38, 84)]
 
@@ -26,6 +28,10 @@ word_pattern_list = [r"v\d+.\d+.\d+",
 remove_chars = '\n , :\'<>！@#￥%……&*（）!@#$%^&*()： ；，/"./'
 
 jieba_remove_flag_list = ['x', 'w']
+
+tokenizer_cache_ttl = 60 * 60
+tokenizer_cache: Dict[Tuple[str, ...], Tuple[float, jieba.Tokenizer]] = {}
+tokenizer_cache_lock = RLock()
 
 
 def get_word_list(text: str):
@@ -76,13 +82,37 @@ def get_key_by_word_dict(key, word_dict):
     return v
 
 
-def to_ts_vector(text: str):
+def _build_tokenizer(user_words: List[str] = None):
+    """创建分词器实例，相同用户词配置缓存 1 小时"""
+    cache_key = tuple(word for word in (user_words or []) if word)
+    now = time.time()
+    with tokenizer_cache_lock:
+        cache_value = tokenizer_cache.get(cache_key)
+        if cache_value is not None and now - cache_value[0] < tokenizer_cache_ttl:
+            return cache_value[1]
+        for key, value in list(tokenizer_cache.items()):
+            if now - value[0] >= tokenizer_cache_ttl:
+                tokenizer_cache.pop(key, None)
+
+    tokenizer = jieba.Tokenizer()
+    if user_words:
+        for word in user_words:
+            if word:
+                tokenizer.add_word(word)
+    with tokenizer_cache_lock:
+        tokenizer_cache[cache_key] = (time.time(), tokenizer)
+    return tokenizer
+
+
+def to_ts_vector(text: str, user_words: List[str] = None):
     # 分词
-    result = jieba.lcut(text, cut_all=True)
+    tokenizer = _build_tokenizer(user_words) if user_words else jieba
+    result = tokenizer.lcut(text, cut_all=True)
     return " ".join(result)
 
 
-def to_query(text: str):
-    extract_tags = jieba.lcut(text, cut_all=True)
+def to_query(text: str, user_words: List[str] = None):
+    tokenizer = _build_tokenizer(user_words) if user_words else jieba
+    extract_tags = tokenizer.lcut(text, cut_all=True)
     result = " ".join(extract_tags)
     return result

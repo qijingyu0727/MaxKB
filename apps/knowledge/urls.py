@@ -4,6 +4,7 @@ from . import views
 
 app_name = "knowledge"
 # @formatter:off
+# fmt: off
 urlpatterns = [
     path('workspace/knowledge/document/template/export', views.Template.as_view()),
     path('workspace/knowledge/document/table_template/export', views.TableTemplate.as_view()),
@@ -41,6 +42,7 @@ urlpatterns = [
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_sync', views.DocumentView.BatchSync.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_delete', views.DocumentView.BatchDelete.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_refresh', views.DocumentView.BatchRefresh.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_tokenize', views.DocumentView.BatchTokenize.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_generate_related', views.DocumentView.BatchGenerateRelated.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_export', views.DocumentView.BatchExport.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_export_zip', views.DocumentView.BatchExportZip.as_view()),
@@ -54,6 +56,7 @@ urlpatterns = [
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>', views.DocumentView.Operate.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/sync', views.DocumentView.SyncWeb.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/refresh', views.DocumentView.Refresh.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/tokenize', views.DocumentView.Tokenize.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/cancel_task', views.DocumentView.CancelTask.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/export', views.DocumentView.Export.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/export_zip', views.DocumentView.ExportZip.as_view()),
@@ -72,6 +75,11 @@ urlpatterns = [
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/paragraph/<str:paragraph_id>', views.ParagraphView.Operate.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/paragraph/<str:paragraph_id>/problem', views.ParagraphView.Problem.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/<str:document_id>/paragraph/<int:current_page>/<int:page_size>', views.ParagraphView.Page.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/termbase', views.TermbaseView.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/termbase/batch_delete', views.TermbaseView.BatchDelete.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/termbase/batch_export', views.TermbaseView.BatchExport.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/termbase/<str:termbase_id>', views.TermbaseView.Operate.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/termbase/<int:current_page>/<int:page_size>', views.TermbaseView.Page.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/problem', views.ProblemView.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/problem/batch_delete', views.ProblemView.BatchDelete.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/problem/batch_association', views.ProblemView.BatchAssociation.as_view()),

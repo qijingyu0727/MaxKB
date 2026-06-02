@@ -1,17 +1,33 @@
 <template>
   <div class="item-content lighter">
-    <div v-for="(answer_text, index) in answer_text_list" :key="index" class="mb-8">
+    <div v-for="(answer_text, index) in answer_text_list" :key="index" class="mb-8 flex">
       <div class="avatar mr-8" v-if="showAvatar">
         <img v-if="application.avatar" :src="application.avatar" height="28px" width="28px" />
         <LogoIcon v-else height="28px" width="28px" />
       </div>
       <div
-        class="content"
+        class="content w-full"
         @mouseup="openControl"
         :style="{
           'padding-right': showUserAvatar ? 'var(--padding-left)' : '0',
         }"
       >
+        <el-card
+          v-if="!chatRecord.write_ed && progress"
+          shadow="always"
+          class="border-r-8 mb-8"
+          style="--el-card-padding: 1px 16px; width: fit-content"
+        >
+          <div class="flex align-center">
+            <component
+              :is="iconComponent(`${progress.node_type}-icon`)"
+              class="mr-8"
+              :size="16"
+              style="--el-avatar-border-radius: 3px"
+            ></component>
+            <MdRenderer :source="progress.content"></MdRenderer>
+          </div>
+        </el-card>
         <el-card shadow="always" class="border-r-8" style="--el-card-padding: 6px 16px">
           <MdRenderer
             v-if="
@@ -22,7 +38,7 @@
                 .join('')
                 .trim().length == 0
             "
-            :source="$t('chat.tip.answerMessage')"
+            :source="$t('aiChat.tip.answerMessage')"
           ></MdRenderer>
           <template v-else-if="answer_text.length > 0">
             <MdRenderer
@@ -38,10 +54,10 @@
             ></MdRenderer>
           </template>
           <p v-else-if="chatRecord.is_stop" shadow="always" style="margin: 0.5rem 0">
-            {{ $t('chat.tip.stopAnswer') }}
+            {{ $t('aiChat.tip.stopAnswer') }}
           </p>
           <p v-else shadow="always" style="margin: 0.5rem 0">
-            {{ $t('chat.tip.answerLoading') }} <span class="dotting"></span>
+            {{ $t('aiChat.tip.answerLoading') }} <span class="dotting"></span>
           </p>
           <!-- 知识来源 -->
           <KnowledgeSourceComponent
@@ -87,7 +103,8 @@ import MdRenderer from '@/components/markdown/MdRenderer.vue'
 import OperationButton from '@/components/ai-chat/component/operation-button/index.vue'
 import { type chatType } from '@/api/type/application'
 import bus from '@/bus'
-
+import { iconComponent } from '@/workflow/icons/utils'
+import { t } from '@/locales'
 const props = defineProps<{
   chatRecord: chatType
   application: any
@@ -108,6 +125,15 @@ const emit = defineEmits([
 
 const showAvatar = computed(() => {
   return props.application.show_avatar == undefined ? true : props.application.show_avatar
+})
+const progress = computed(() => {
+  if (props.chatRecord.currentChunk) {
+    return {
+      content: `${t('aiChat.executing')} ${props.chatRecord.currentChunk.node_name}`,
+      node_type: props.chatRecord.currentChunk.node_type,
+    }
+  }
+  return null
 })
 const showUserAvatar = computed(() => {
   return props.application.show_user_avatar == undefined ? true : props.application.show_user_avatar

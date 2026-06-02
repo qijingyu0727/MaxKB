@@ -49,8 +49,11 @@ class Group(Enum):
     SYSTEM_KNOWLEDGE_TAG = "SYSTEM_KNOWLEDGE_TAG"
 
     KNOWLEDGE_PROBLEM = "KNOWLEDGE_PROBLEM"
+    KNOWLEDGE_TERMBASE = "KNOWLEDGE_TERMBASE"
     SYSTEM_KNOWLEDGE_PROBLEM = "SYSTEM_KNOWLEDGE_PROBLEM"
+    SYSTEM_KNOWLEDGE_TERMBASE = "SYSTEM_KNOWLEDGE_TERMBASE"
     SYSTEM_RES_KNOWLEDGE_PROBLEM = "SYSTEM_RESOURCE_KNOWLEDGE_PROBLEM"
+    SYSTEM_RES_KNOWLEDGE_TERMBASE = "SYSTEM_RESOURCE_KNOWLEDGE_TERMBASE"
 
     SYSTEM_KNOWLEDGE_HIT_TEST = "SYSTEM_KNOWLEDGE_HIT_TEST"
     SYSTEM_RES_KNOWLEDGE_HIT_TEST = "SYSTEM_RESOURCE_KNOWLEDGE_HIT_TEST"
@@ -182,6 +185,7 @@ class Operate(Enum):
     TO_CHAT = "READ+TO_CHAT"  # 去对话
     SETTING = "READ+SETTING"  # 管理
     DOWNLOAD = "READ+DOWNLOAD"  # 下载
+    COPY = "READ+COPY"
     AUTH = "READ+AUTH"  # 资源授权
     TAG = "READ+TAG"  # 标签设置
     REPLACE = "READ+REPLACE"  # 标签设置
@@ -338,6 +342,7 @@ Permission_Label = {
     WorkspaceGroup.OTHER.value: _("Other"),
     Operate.READ.value: _("Read"),
     Operate.EDIT.value: _("Edit"),
+    Operate.COPY.value: _('Copy'),
     Operate.PUBLISH.value: _("Publish"),
     Operate.CREATE.value: _("Create"),
     Operate.DELETE.value: _("Delete"),
@@ -345,6 +350,7 @@ Permission_Label = {
     Group.APPLICATION.value: _("Application"),
     Group.KNOWLEDGE.value: _("Knowledge"),
     Group.KNOWLEDGE_DOCUMENT.value: _("Document"),
+    Group.KNOWLEDGE_TERMBASE.value: _("Termbase"),
     Group.KNOWLEDGE_WORKFLOW.value: _("Workflow"),
     Group.KNOWLEDGE_TAG.value: _("Tag"),
     Group.KNOWLEDGE_PROBLEM.value: _("Problem"),
@@ -401,6 +407,7 @@ Permission_Label = {
     Group.SYSTEM_MODEL.value: _("Model"),
     Group.SYSTEM_KNOWLEDGE.value: _("Knowledge"),
     Group.SYSTEM_KNOWLEDGE_DOCUMENT.value: _("Document"),
+    Group.SYSTEM_KNOWLEDGE_TERMBASE.value: _("Termbase"),
     Group.SYSTEM_KNOWLEDGE_WORKFLOW.value: _("Workflow"),
     Group.SYSTEM_KNOWLEDGE_TAG.value: _("Tag"),
     Group.SYSTEM_KNOWLEDGE_PROBLEM.value: _("Problem"),
@@ -410,6 +417,7 @@ Permission_Label = {
     Group.SYSTEM_RES_MODEL.value: _("Model"),
     Group.SYSTEM_RES_KNOWLEDGE.value: _("Knowledge"),
     Group.SYSTEM_RES_KNOWLEDGE_DOCUMENT.value: _("Document"),
+    Group.SYSTEM_RES_KNOWLEDGE_TERMBASE.value: _("Termbase"),
     Group.SYSTEM_RES_KNOWLEDGE_WORKFLOW.value: _("Workflow"),
     Group.SYSTEM_RES_KNOWLEDGE_TAG.value: _("Tag"),
     Group.SYSTEM_RES_KNOWLEDGE_PROBLEM.value: _("Problem"),
@@ -882,6 +890,28 @@ class PermissionConstants(Enum):
         resource_permission_group_list=[ResourcePermissionConst.KNOWLEDGE_MANGE],
         parent_group=[WorkspaceGroup.KNOWLEDGE, UserGroup.KNOWLEDGE]
     )
+    KNOWLEDGE_TERMBASE_READ = Permission(
+        group=Group.KNOWLEDGE_TERMBASE, operate=Operate.READ,
+        role_list=[RoleConstants.ADMIN, RoleConstants.USER],
+        resource_permission_group_list=[ResourcePermissionConst.KNOWLEDGE_VIEW],
+        parent_group=[WorkspaceGroup.KNOWLEDGE, UserGroup.KNOWLEDGE]
+    )
+    KNOWLEDGE_TERMBASE_CREATE = Permission(
+        group=Group.KNOWLEDGE_TERMBASE, operate=Operate.CREATE,
+        role_list=[RoleConstants.ADMIN, RoleConstants.USER],
+        resource_permission_group_list=[ResourcePermissionConst.KNOWLEDGE_MANGE],
+        parent_group=[WorkspaceGroup.KNOWLEDGE, UserGroup.KNOWLEDGE]
+    )
+    KNOWLEDGE_TERMBASE_EDIT = Permission(
+        group=Group.KNOWLEDGE_TERMBASE, operate=Operate.EDIT, role_list=[RoleConstants.ADMIN, RoleConstants.USER],
+        resource_permission_group_list=[ResourcePermissionConst.KNOWLEDGE_MANGE],
+        parent_group=[WorkspaceGroup.KNOWLEDGE, UserGroup.KNOWLEDGE]
+    )
+    KNOWLEDGE_TERMBASE_DELETE = Permission(
+        group=Group.KNOWLEDGE_TERMBASE, operate=Operate.DELETE, role_list=[RoleConstants.ADMIN, RoleConstants.USER],
+        resource_permission_group_list=[ResourcePermissionConst.KNOWLEDGE_MANGE],
+        parent_group=[WorkspaceGroup.KNOWLEDGE, UserGroup.KNOWLEDGE]
+    )
     KNOWLEDGE_TAG_READ = Permission(
         group=Group.KNOWLEDGE_TAG, operate=Operate.READ,
         role_list=[RoleConstants.ADMIN, RoleConstants.USER],
@@ -1046,6 +1076,11 @@ class PermissionConstants(Enum):
                                     parent_group=[WorkspaceGroup.APPLICATION, UserGroup.APPLICATION],
                                     resource_permission_group_list=[ResourcePermissionConst.APPLICATION_MANGE],
                                     )
+    APPLICATION_COPY = Permission(group=Group.APPLICATION, operate=Operate.COPY,
+                                  role_list=[RoleConstants.ADMIN, RoleConstants.USER],
+                                  parent_group=[WorkspaceGroup.APPLICATION, UserGroup.APPLICATION],
+                                  resource_permission_group_list=[ResourcePermissionConst.APPLICATION_MANGE],
+                                  )
     APPLICATION_EDIT = Permission(group=Group.APPLICATION, operate=Operate.EDIT,
                                   role_list=[RoleConstants.ADMIN, RoleConstants.USER],
                                   parent_group=[WorkspaceGroup.APPLICATION, UserGroup.APPLICATION],
@@ -1553,6 +1588,26 @@ class PermissionConstants(Enum):
         group=Group.SYSTEM_KNOWLEDGE_PROBLEM, operate=Operate.RELATE, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
     )
+    SHARED_KNOWLEDGE_TERMBASE_READ = Permission(
+        group=Group.SYSTEM_KNOWLEDGE_TERMBASE, operate=Operate.READ, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    SHARED_KNOWLEDGE_TERMBASE_CREATE = Permission(
+        group=Group.SYSTEM_KNOWLEDGE_TERMBASE, operate=Operate.CREATE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    SHARED_KNOWLEDGE_TERMBASE_EDIT = Permission(
+        group=Group.SYSTEM_KNOWLEDGE_TERMBASE, operate=Operate.EDIT, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    SHARED_KNOWLEDGE_TERMBASE_DELETE = Permission(
+        group=Group.SYSTEM_KNOWLEDGE_TERMBASE, operate=Operate.DELETE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    SHARED_KNOWLEDGE_TERMBASE_EXPORT = Permission(
+        group=Group.SYSTEM_KNOWLEDGE_TERMBASE, operate=Operate.EXPORT, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
     SHARED_KNOWLEDGE_HIT_TEST = Permission(
         group=Group.SYSTEM_KNOWLEDGE_HIT_TEST, operate=Operate.READ, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
@@ -1600,6 +1655,11 @@ class PermissionConstants(Enum):
     )
     RESOURCE_APPLICATION_EXPORT = Permission(
         group=Group.SYSTEM_RES_APPLICATION, operate=Operate.EXPORT, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.RESOURCE_APPLICATION], is_ee=settings.edition == "EE"
+    )
+    RESOURCE_APPLICATION_COPY = Permission(
+        group=Group.SYSTEM_RES_APPLICATION, operate=Operate.COPY,
+        role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.RESOURCE_APPLICATION], is_ee=settings.edition == "EE"
     )
     RESOURCE_APPLICATION_AUTH = Permission(
@@ -1819,6 +1879,26 @@ class PermissionConstants(Enum):
     )
     RESOURCE_KNOWLEDGE_PROBLEM_RELATE = Permission(
         group=Group.SYSTEM_RES_KNOWLEDGE_PROBLEM, operate=Operate.RELATE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    RESOURCE_KNOWLEDGE_TERMBASE_READ = Permission(
+        group=Group.SYSTEM_RES_KNOWLEDGE_TERMBASE, operate=Operate.READ, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    RESOURCE_KNOWLEDGE_TERMBASE_CREATE = Permission(
+        group=Group.SYSTEM_RES_KNOWLEDGE_TERMBASE, operate=Operate.CREATE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    RESOURCE_KNOWLEDGE_TERMBASE_EDIT = Permission(
+        group=Group.SYSTEM_RES_KNOWLEDGE_TERMBASE, operate=Operate.EDIT, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    RESOURCE_KNOWLEDGE_TERMBASE_DELETE = Permission(
+        group=Group.SYSTEM_RES_KNOWLEDGE_TERMBASE, operate=Operate.DELETE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    RESOURCE_KNOWLEDGE_TERMBASE_EXPORT = Permission(
+        group=Group.SYSTEM_RES_KNOWLEDGE_TERMBASE, operate=Operate.EXPORT, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
     )
     RESOURCE_KNOWLEDGE_TAG_READ = Permission(

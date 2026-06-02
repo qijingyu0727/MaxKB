@@ -80,7 +80,12 @@
     </el-table-column>
   </el-table>
 
-  <UserFieldFormDialog ref="UserFieldFormDialogRef" @refresh="refreshFieldList" />
+  <UserFieldFormDialog
+    ref="UserFieldFormDialogRef"
+    @refresh="refreshFieldList"
+    :nodeModel="props.nodeModel"
+    :currentNodeFields="props.nodeModel.properties.user_input_field_list"
+  />
   <UserInputTitleDialog ref="UserInputTitleDialogRef" @refresh="refreshFieldTitle" />
 </template>
 
@@ -91,6 +96,7 @@ import Sortable from 'sortablejs'
 import UserFieldFormDialog from './UserFieldFormDialog.vue'
 import { MsgError } from '@/utils/message'
 import { t } from '@/locales'
+import { ALLOWED_EXPOSED_TYPES } from '@/components/ai-chat/component/inline-params/constants'
 import UserInputTitleDialog from '@/workflow/nodes/base-node/component/UserInputTitleDialog.vue'
 import { input_type_list } from '@/components/dynamics-form/constructor/data'
 const props = defineProps<{ nodeModel: any }>()
@@ -99,18 +105,34 @@ const tableRef = ref()
 const UserFieldFormDialogRef = ref()
 const UserInputTitleDialogRef = ref()
 const inputFieldList = ref<any[]>([])
-const inputFieldConfig = ref({ title: t('chat.userInput') })
+const inputFieldConfig = ref({ title: t('aiChat.userInput') })
 
 function openAddDialog(data?: any, index?: any) {
   UserFieldFormDialogRef.value.open(data, index)
 }
 
+function removeFromExposed(fieldName: string) {
+  const setting = props.nodeModel.properties.user_input_field_list_setting
+  if (setting?.exposed_fields?.includes(fieldName)) {
+    setting.exposed_fields = setting.exposed_fields.filter((f: string) => f !== fieldName)
+  }
+}
+
 function openChangeTitleDialog() {
-  UserInputTitleDialogRef.value.open(inputFieldConfig.value)
+  UserInputTitleDialogRef.value.open(
+    inputFieldConfig.value,
+    inputFieldList.value,
+    props.nodeModel.properties.user_input_field_list_setting,
+    props.nodeModel.properties.user_input_config?.title,
+  )
 }
 
 function deleteField(index: any) {
+  const removed = inputFieldList.value[index]
   inputFieldList.value.splice(index, 1)
+  if (removed?.field) {
+    removeFromExposed(removed.field)
+  }
   props.nodeModel.graphModel.eventCenter.emit('refreshFieldList')
   onDragHandle()
 }
@@ -135,13 +157,18 @@ function refreshFieldList(data: any, index: any) {
   } else {
     inputFieldList.value.push(data)
   }
+  if (!ALLOWED_EXPOSED_TYPES.includes(data.input_type)) {
+    removeFromExposed(data.field)
+  }
   UserFieldFormDialogRef.value.close()
   props.nodeModel.graphModel.eventCenter.emit('refreshFieldList')
   onDragHandle()
 }
 
-function refreshFieldTitle(data: any) {
-  inputFieldConfig.value = data
+function refreshFieldTitle(setting: any) {
+  if (setting) {
+    set(props.nodeModel.properties, 'user_input_field_list_setting', setting)
+  }
   UserInputTitleDialogRef.value.close()
 }
 

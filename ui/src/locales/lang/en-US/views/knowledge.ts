@@ -6,6 +6,7 @@ export default {
   setting: {
     vectorization: 'Vectorization',
     sync: 'Sync',
+    tokenize: 'Tokenize',
   },
   tip: {
     professionalMessage:
@@ -115,5 +116,16 @@ export default {
     tip: 'Note: The conversion cannot be undone.',
     confirm:
       'Are you sure you want to convert to the workflow knowledge base? This action cannot be undone. Please proceed with caution.',
+  },
+  customSegmentation: {
+    title: 'Custom Segmentation',
+    tip: 'Avoid professional terms from being split, improve the accuracy and recall rate of full-text search',
+    create: 'Create Term',
+    quickCreate: 'Quick Create Term',
+    word: 'Term',
+    wordplaceholder:
+      'Please enter the professional terms/unique vocabulary to retain, one per line',
+    wordRequiredMessage: 'Please enter a term',
+    wordIndexing: 'Term Indexing',
   },
 }

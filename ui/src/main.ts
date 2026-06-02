@@ -4,17 +4,17 @@ import * as ElementPlusIcons from '@element-plus/icons-vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import enUs from 'element-plus/es/locale/lang/en'
 import zhTW from 'element-plus/es/locale/lang/zh-tw'
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
+import {createApp} from 'vue'
+import {createPinia} from 'pinia'
 import App from './App.vue'
 import router from '@/router'
-import i18n from '@/locales'
+import i18n, {initExternalLocales} from '@/locales'
 import Components from '@/components'
 import directives from '@/directives'
-import { getDefaultWhiteList } from 'xss'
-import { config, XSSPlugin } from 'md-editor-v3'
+import {getDefaultWhiteList} from 'xss'
+import {config, XSSPlugin} from 'md-editor-v3'
 
-import { supPopover } from '@/utils/supPopover'
+import {supPopover} from '@/utils/supPopover'
 
 import screenfull from 'screenfull'
 import katex from 'katex'
@@ -111,4 +111,7 @@ app.use(directives)
 app.use(router)
 app.use(i18n)
 app.use(Components)
+// 初始化外置语言包后挂载应用
+initExternalLocales().finally(() => {
+})
 app.mount('#app')

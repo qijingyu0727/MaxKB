@@ -13,7 +13,7 @@
               style="width: 75px"
             >
               <el-option :label="$t('views.chatLog.table.abstract')" value="abstract" />
-              <el-option :label="$t('views.chatLog.table.username')" value="username" />
+              <el-option :label="$t('views.chatLog.table.user')" value="username" />
             </el-select>
             <el-input
               v-model="search_form[search_type]"
@@ -35,8 +35,8 @@
             v-if="history_day === 'other'"
             v-model="daterangeValue"
             type="daterange"
-            :start-placeholder="$t('views.applicationOverview.monitor.startDatePlaceholder')"
-            :end-placeholder="$t('views.applicationOverview.monitor.endDatePlaceholder')"
+            :start-placeholder="$t('home.startDatePlaceholder')"
+            :end-placeholder="$t('home.endDatePlaceholder')"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             @change="changeDayRangeHandle"
@@ -287,7 +287,7 @@ import { MsgSuccess, MsgConfirm } from '@/utils/message'
 import { beforeDay, datetimeFormat, nowDate } from '@/utils/time'
 import type { Dict } from '@/api/type/common'
 import { t } from '@/locales'
-import { ElTable } from 'element-plus'
+import type { TableInstance } from 'element-plus'
 import permissionMap from '@/permission'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 import { Permission } from '@/utils/permission/type'
@@ -352,19 +352,19 @@ const SOURCE_TYPE_TRANSLATIONS: Record<SourceType, string> = {
 const dayOptions = [
   {
     value: 7,
-    label: t('views.applicationOverview.monitor.pastDayOptions.past7Days'), // 使用 t 方法来国际化显示文本
+    label: t('home.pastDayOptions.past7Days'), // 使用 t 方法来国际化显示文本
   },
   {
     value: 30,
-    label: t('views.applicationOverview.monitor.pastDayOptions.past30Days'),
+    label: t('home.pastDayOptions.past30Days'),
   },
   {
     value: 90,
-    label: t('views.applicationOverview.monitor.pastDayOptions.past90Days'),
+    label: t('home.pastDayOptions.past90Days'),
   },
   {
     value: 183,
-    label: t('views.applicationOverview.monitor.pastDayOptions.past183Days'),
+    label: t('home.pastDayOptions.past183Days'),
   },
   {
     value: 'other',
@@ -378,7 +378,7 @@ const daterange = ref({
   end_time: '',
 })
 
-const multipleTableRef = ref<InstanceType<typeof ElTable>>()
+const multipleTableRef = ref<TableInstance>()
 const multipleSelection = ref<any[]>([])
 
 const ChatRecordRef = ref()

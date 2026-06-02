@@ -8,8 +8,8 @@
   >
     <el-card shadow="always" class="border-r-8" style="--el-card-padding: 16px 8px">
       <div class="flex align-center cursor w-full" style="padding: 0 8px">
-        <span class="break-all ellipsis-1 mr-16" :title="inputFieldConfig.title">
-          {{ inputFieldConfig.title }}
+        <span class="break-all ellipsis-1 mr-16" :title="props.title || $t('common.moreSettings')">
+          {{ props.title || $t('common.moreSettings') }}
         </span>
       </div>
 
@@ -39,7 +39,7 @@
       <div class="text-left ml-8">
         <el-button type="primary" class="w-full" v-if="first" @click="confirmHandle">
           <AppIcon iconName="app-chat" class="mr-4"></AppIcon>
-          {{ $t('chat.operation.startChat') }}</el-button
+          {{ $t('aiChat.operation.startChat') }}</el-button
         >
         <el-button type="primary" v-if="!first" @click="confirmHandle">{{
           $t('common.confirm')
@@ -66,12 +66,14 @@ const props = defineProps<{
   api_form_data: any
   form_data: any
   first?: boolean
+  excludeFields?: string[]
+  title?: string
 }>()
 // 用于刷新动态表单
 const dynamicsFormRefresh = ref(0)
 const inputFieldList = ref<FormField[]>([])
 const apiInputFieldList = ref<FormField[]>([])
-const inputFieldConfig = ref({ title: t('chat.userInput') })
+const inputFieldConfig = ref({ title: t('aiChat.userInput') })
 const firstMounted = ref(false)
 
 const dynamicsFormRef = ref<InstanceType<typeof DynamicsForm>>()
@@ -97,12 +99,9 @@ const form_data_context = computed({
   },
 })
 
-watch(
-  () => props.application,
-  (data) => {
-    handleInputFieldList()
-  },
-)
+watch([() => props.application, () => props.excludeFields], () => {
+  handleInputFieldList()
+})
 
 function handleInputFieldList() {
   dynamicsFormRefresh.value++
@@ -191,7 +190,11 @@ function handleInputFieldList() {
                 }
               })
           : []
-
+      if (props.excludeFields?.length) {
+        inputFieldList.value = inputFieldList.value.filter(
+          (f: any) => !props.excludeFields!.includes(f.field),
+        )
+      }
       apiInputFieldList.value = v.properties.api_input_field_list
         ? v.properties.api_input_field_list.map((v: any) => {
             switch (v.type) {
@@ -277,7 +280,7 @@ function handleInputFieldList() {
       //
       inputFieldConfig.value = v.properties.user_input_config?.title
         ? v.properties.user_input_config
-        : { title: t('chat.userInput') }
+        : { title: t('aiChat.userInput') }
     })
 }
 const getRouteQueryValue = (field: string) => {
@@ -320,7 +323,7 @@ const validate_query = () => {
   }
   if (msg.length > 0) {
     MsgWarning(
-      `${t('chat.tip.inputParamMessage1')} ${msg.join('、')}${t('chat.tip.inputParamMessage2')}`,
+      `${t('aiChat.tip.inputParamMessage1')} ${msg.join('、')}${t('aiChat.tip.inputParamMessage2')}`,
     )
     return Promise.reject(false)
   }

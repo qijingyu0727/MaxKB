@@ -14,14 +14,20 @@
       <UserForm
         v-model:api_form_data="api_form_data"
         v-model:form_data="form_data"
+        :excludeFields="inlineExposedFields"
+        :title="
+          applicationDetails?.work_flow?.nodes?.find((v: any) => v.id === 'base-node')?.properties
+            ?.user_input_field_list_setting?.menu_title ||
+          applicationDetails?.work_flow?.nodes?.find((v: any) => v.id === 'base-node')?.properties
+            ?.user_input_config?.title
+        "
         :application="applicationDetails"
         :type="type"
         :first="firsUserInput"
         @confirm="UserFormConfirm"
         @cancel="UserFormCancel"
         ref="userFormRef"
-      >
-      </UserForm>
+      />
     </div>
     <template v-if="!(isUserInput || isAPIInput) || !firsUserInput || type === 'log'">
       <el-scrollbar ref="scrollDiv" @scroll="handleScrollTop">
@@ -94,7 +100,7 @@
           </el-checkbox-group>
           <TransitionContent
             v-if="transcribing"
-            :text="t('chat.inputPlaceholder.recorderLoading')"
+            :text="t('aiChat.inputPlaceholder.recorderLoading')"
             :type="type"
             :application="applicationDetails"
           >
@@ -122,7 +128,7 @@
                 @click="shareChatHandle"
                 :disabled="shareLoading || multipleSelectionChat.length === 0"
               >
-                {{ $t('chat.copyLinkText') }}
+                {{ $t('aiChat.copyLinkText') }}
               </el-button>
             </div>
           </div>
@@ -141,17 +147,15 @@
           v-model:show-user-input="showUserInput"
           v-else-if="type !== 'log' && type !== 'share'"
         >
-          <template #userInput>
-            <el-button
-              v-if="isUserInput || isAPIInput"
-              class="user-input-button mb-8"
-              @click="toggleUserInput"
+          <template #inlineParams>
+            <InlineParams
+              ref="inlineParamsRef"
+              :application="applicationDetails"
+              :maxExposed="maxExposed"
+              v-model:form-data="form_data"
+              @openDialog="handleOpenDialog"
             >
-              <AppIcon iconName="app-edit" :size="16" class="mr-4"></AppIcon>
-              <span class="ellipsis">
-                {{ userInputTitle || $t('chat.userInput') }}
-              </span>
-            </el-button>
+            </InlineParams>
           </template>
         </ChatInputOperate>
       </div>
@@ -182,6 +186,7 @@ import { ChatManagement, type chatType } from '@/api/type/application'
 import { randomId } from '@/utils/common'
 import useStore from '@/stores'
 import { debounce } from 'lodash'
+import { useElementSize } from '@vueuse/core'
 import AnswerContent from '@/components/ai-chat/component/answer-content/index.vue'
 import QuestionContent from '@/components/ai-chat/component/question-content/index.vue'
 import TransitionContent from '@/components/ai-chat/component/transition-content/index.vue'
@@ -196,6 +201,7 @@ import { throttle } from 'lodash-es'
 import { copyClick } from '@/utils/clipboard'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 import { getWrite } from '@/utils/chat'
+import InlineParams from '@/components/ai-chat/component/inline-params/index.vue'
 
 provide('upload', (file: any, loading?: Ref<boolean>) => {
   return props.type === 'debug-ai-chat'
@@ -252,10 +258,24 @@ const emit = defineEmits([
   'update:selection',
 ])
 const { application, common, chatUser } = useStore()
+
+const aiChatRef = ref()
+const { width: rootWidth } = useElementSize(aiChatRef)
+
 const isMobile = computed(() => {
   return common.isMobile() || mode === 'embed' || mode === 'mobile'
 })
-const aiChatRef = ref()
+
+const isNarrow = computed(() => rootWidth.value > 0 && rootWidth.value < 1040)
+
+const maxExposed = computed(() => (isNarrow.value ? 1 : 3))
+const inlineExposedFields = computed<string[]>(() =>
+  (
+    props.applicationDetails?.work_flow?.nodes?.find((v: any) => v.id === 'base-node')?.properties
+      ?.user_input_field_list_setting?.exposed_fields || []
+  ).slice(0, maxExposed.value),
+)
+
 const scrollDiv = ref()
 const dialogScrollbar = ref()
 const loading = ref(false)
@@ -272,6 +292,8 @@ const showUserInput = ref(false)
 // 初始表单数据（用于恢复）
 const initialFormData = ref({})
 const initialApiFormData = ref({})
+
+const inlineParamsRef = ref<InstanceType<typeof InlineParams>>()
 
 const isUserInput = computed(
   () =>
@@ -304,11 +326,6 @@ watch(
       firsUserInput.value = false
     } else {
       chartOpenId.value = ''
-      if (isUserInput.value) {
-        firsUserInput.value = true
-      } else if (props.type == 'debug-ai-chat' && isAPIInput.value) {
-        firsUserInput.value = true
-      }
     }
   },
   { deep: true, immediate: true },
@@ -391,6 +408,12 @@ function toggleSelect(id: number) {
   }
 }
 
+const handleOpenDialog = () => {
+  showUserInput.value = true
+  initialFormData.value = JSON.parse(JSON.stringify(form_data.value))
+  initialApiFormData.value = JSON.parse(JSON.stringify(api_form_data.value))
+}
+
 function cancelCheckHandle() {
   checkAll.value = false
   multipleSelectionChat.value = []
@@ -420,7 +443,7 @@ function UserFormCancel() {
 }
 
 const validate = () => {
-  return userFormRef.value?.validate() || Promise.reject(false)
+  return inlineParamsRef.value?.validate() || Promise.resolve(true)
 }
 
 function sendMessage(val: string, other_params_data?: any, chat?: chatType): Promise<boolean> {
@@ -561,11 +584,10 @@ function getChartOpenId(chat?: any, problem?: string, re_chat?: boolean, other_p
   })
 }
 
-
 const errorWrite = (chat: any, message?: string) => {
   ChatManagement.addChatRecord(chat, 50, loading)
   ChatManagement.write(chat.id)
-  ChatManagement.append(chat.id, message || t('chat.tip.error500Message'))
+  ChatManagement.append(chat.id, message || t('aiChat.tip.error500Message'))
   ChatManagement.updateStatus(chat.id, 500)
   ChatManagement.close(chat.id)
 }
@@ -580,6 +602,7 @@ function chatMessage(chat?: any, problem?: string, re_chat?: boolean, other_para
       problem_text: problem ? problem : inputValue.value.trim(),
       answer_text: '',
       answer_text_list: [[]],
+      currentNodeName: '',
       buffer: [],
       reasoning_content: '',
       reasoning_content_buffer: [],
@@ -636,9 +659,9 @@ function chatMessage(chat?: any, problem?: string, re_chat?: boolean, other_para
     getChatMessageAPI()(chartOpenId.value, obj)
       .then((response) => {
         if (response.status === 460) {
-          return Promise.reject(t('chat.tip.errorIdentifyMessage'))
+          return Promise.reject(t('aiChat.tip.errorIdentifyMessage'))
         } else if (response.status === 461) {
-          return Promise.reject(t('chat.tip.errorLimitMessage'))
+          return Promise.reject(t('aiChat.tip.errorLimitMessage'))
         } else {
           nextTick(() => {
             // 将滚动条滚动到最下面

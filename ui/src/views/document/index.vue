@@ -51,17 +51,16 @@
                   >{{ $t('views.knowledge.setting.vectorization') }}
                 </el-button>
                 <el-button
+                  @click="batchTokenize"
+                  :disabled="multipleSelection.length === 0"
+                  v-if="permissionPrecise.doc_vector(id)"
+                  >{{ $t('views.knowledge.customSegmentation.wordIndexing') }}
+                </el-button>
+                <el-button
                   @click="openGenerateDialog()"
                   :disabled="multipleSelection.length === 0"
                   v-if="permissionPrecise.doc_generate(id)"
                   >{{ $t('views.document.generateQuestion.title') }}
-                </el-button>
-                <el-button
-                  @click="openBatchEditDocument"
-                  :disabled="multipleSelection.length === 0"
-                  v-if="permissionPrecise.doc_edit(id)"
-                >
-                  {{ $t('common.setting') }}
                 </el-button>
 
                 <el-dropdown v-if="MoreFilledPermission0(id)">
@@ -70,6 +69,13 @@
                   </el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
+                      <el-dropdown-item
+                        @click="openBatchEditDocument()"
+                        :disabled="multipleSelection.length === 0"
+                        v-if="permissionPrecise.doc_edit(id)"
+                      >
+                        {{ $t('common.setting') }}
+                      </el-dropdown-item>
                       <el-dropdown-item
                         @click="openknowledgeDialog()"
                         :disabled="multipleSelection.length === 0"
@@ -102,14 +108,14 @@
                         :disabled="multipleSelection.length === 0"
                         v-if="permissionPrecise.doc_export(id)"
                       >
-                        {{ $t('views.document.setting.export') }} Excel
+                        {{ $t('common.export') }} Excel
                       </el-dropdown-item>
                       <el-dropdown-item
                         @click="exportMulDocumentZip"
                         :disabled="multipleSelection.length === 0"
                         v-if="permissionPrecise.doc_export(id)"
                       >
-                        {{ $t('views.document.setting.export') }} Zip
+                        {{ $t('common.export') }} Zip
                       </el-dropdown-item>
 
                       <el-dropdown-item
@@ -245,6 +251,17 @@
                           class="justify-center"
                           :command="beforeCommand('status', State.STARTED, TaskType.EMBEDDING)"
                           >{{ $t('views.document.fileStatus.EMBEDDING') }}
+                        </el-dropdown-item>
+                        <el-dropdown-item
+                          :class="
+                            filterMethod['status'] === State.STARTED &&
+                            filterMethod['task_type'] == TaskType.TOKENIZE
+                              ? 'is-active'
+                              : ''
+                          "
+                          class="justify-center"
+                          :command="beforeCommand('status', State.STARTED, TaskType.TOKENIZE)"
+                          >{{ $t('views.document.fileStatus.TOKENIZE') }}
                         </el-dropdown-item>
                         <el-dropdown-item
                           :class="filterMethod['status'] === State.PENDING ? 'is-active' : ''"
@@ -535,16 +552,38 @@
                   </el-tooltip>
                   <el-tooltip
                     effect="dark"
-                    :content="$t('common.setting')"
+                    :content="$t('views.document.setting.cancelTokenize')"
                     placement="top"
-                    v-if="permissionPrecise.doc_edit(id)"
+                    v-if="
+                      ([State.STARTED, State.PENDING] as Array<string>).includes(
+                        getTaskState(row.status, TaskType.TOKENIZE),
+                      )
+                    "
                   >
                     <span class="mr-4">
-                      <el-button type="primary" text @click.stop="settingDoc(row)">
-                        <AppIcon iconName="app-setting"></AppIcon>
+                      <el-button
+                        type="primary"
+                        text
+                        @click.stop="cancelTask(row, TaskType.TOKENIZE)"
+                        v-if="permissionPrecise.doc_vector(id)"
+                      >
+                        <el-icon><Close /></el-icon>
                       </el-button>
                     </span>
                   </el-tooltip>
+                  <el-tooltip
+                    effect="dark"
+                    :content="$t('views.knowledge.customSegmentation.wordIndexing')"
+                    placement="top"
+                    v-else
+                  >
+                    <span class="mr-4" v-if="permissionPrecise.doc_vector(id)">
+                      <el-button type="primary" text @click.stop="tokenizeDocument(row)">
+                        <AppIcon iconName="app-document-wordIndexing" style="font-size: 16px"></AppIcon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+
                   <span @click.stop>
                     <el-dropdown trigger="click" v-if="MoreFilledPermission1(id)">
                       <el-button text type="primary">
@@ -552,6 +591,13 @@
                       </el-button>
                       <template #dropdown>
                         <el-dropdown-menu>
+                          <el-dropdown-item
+                            v-if="permissionPrecise.doc_edit(id)"
+                            @click="settingDoc(row)"
+                          >
+                            <AppIcon iconName="app-setting" class="color-secondary"></AppIcon>
+                            {{ $t('common.setting') }}
+                          </el-dropdown-item>
                           <el-dropdown-item
                             v-if="
                               ([State.STARTED, State.PENDING] as Array<string>).includes(
@@ -593,14 +639,14 @@
                             v-if="permissionPrecise.doc_export(id)"
                           >
                             <AppIcon iconName="app-export" class="color-secondary"></AppIcon>
-                            {{ $t('views.document.setting.export') }} Excel
+                            {{ $t('common.export') }} Excel
                           </el-dropdown-item>
                           <el-dropdown-item
                             @click="exportDocumentZip(row)"
                             v-if="permissionPrecise.doc_export(id)"
                           >
                             <AppIcon iconName="app-export" class="color-secondary"></AppIcon>
-                            {{ $t('views.document.setting.export') }} Zip
+                            {{ $t('common.export') }} Zip
                           </el-dropdown-item>
                           <el-dropdown-item
                             @click.stop="downloadDocument(row)"
@@ -660,11 +706,44 @@
                     effect="dark"
                     :content="$t('views.knowledge.setting.vectorization')"
                     placement="top"
-                    v-if="permissionPrecise.vector(id)"
+                    v-else
                   >
-                    <span class="mr-4">
+                    <span class="mr-4"  v-if="permissionPrecise.vector(id)">
                       <el-button type="primary" text @click.stop="refreshDocument(row)">
                         <AppIcon iconName="app-document-refresh" style="font-size: 16px"></AppIcon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
+                    effect="dark"
+                    :content="$t('views.document.setting.cancelTokenize')"
+                    placement="top"
+                    v-if="
+                      ([State.STARTED, State.PENDING] as Array<string>).includes(
+                        getTaskState(row.status, TaskType.TOKENIZE),
+                      )
+                    "
+                  >
+                    <span class="mr-4">
+                      <el-button
+                        type="primary"
+                        text
+                        @click.stop="cancelTask(row, TaskType.TOKENIZE)"
+                        v-if="permissionPrecise.doc_vector(id)"
+                      >
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
+                    effect="dark"
+                    :content="$t('views.knowledge.customSegmentation.wordIndexing')"
+                    placement="top"
+                    v-else
+                  >
+                    <span class="mr-4" v-if="permissionPrecise.doc_vector(id)">
+                      <el-button type="primary" text @click.stop="tokenizeDocument(row)">
+                        <AppIcon iconName="app-document-wordIndexing" style="font-size: 16px"></AppIcon>
                       </el-button>
                     </span>
                   </el-tooltip>
@@ -736,14 +815,14 @@
                             v-if="permissionPrecise.doc_export(id)"
                           >
                             <AppIcon iconName="app-export" class="color-secondary"></AppIcon>
-                            {{ $t('views.document.setting.export') }} Excel
+                            {{ $t('common.export') }} Excel
                           </el-dropdown-item>
                           <el-dropdown-item
                             @click="exportDocumentZip(row)"
                             v-if="permissionPrecise.doc_export(id)"
                           >
                             <AppIcon iconName="app-export" class="color-secondary"></AppIcon>
-                            {{ $t('views.document.setting.export') }} Zip
+                            {{ $t('common.export') }} Zip
                           </el-dropdown-item>
                           <el-dropdown-item
                             @click.stop="deleteDocument(row)"
@@ -815,7 +894,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue'
 import { useRouter, useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
-import type { ElTable } from 'element-plus'
+import type { TableInstance } from 'element-plus'
 import ImportDocumentDialog from './component/ImportDocumentDialog.vue'
 import SelectKnowledgeDialog from './component/SelectKnowledgeDialog.vue'
 import { numberFormat } from '@/utils/common'
@@ -941,7 +1020,7 @@ const paginationConfig = ref({
 })
 
 const ImportDocumentDialogRef = ref()
-const multipleTableRef = ref<InstanceType<typeof ElTable>>()
+const multipleTableRef = ref<TableInstance>()
 const multipleSelection = ref<any[]>([])
 const title = ref('')
 
@@ -1144,6 +1223,15 @@ function refreshDocument(row: any) {
   embeddingContentDialogRef.value?.open(embeddingDocument)
 }
 
+function tokenizeDocument(row: any) {
+  const stateList = ['0', '1', '2', '3', '4', '5', 'n']
+  loadSharedApi({ type: 'document', systemType: apiType.value })
+    .putDocumentTokenize(row.knowledge_id, row.id, stateList)
+    .then(() => {
+      getList()
+    })
+}
+
 function rowClickHandle(row: any, column: any) {
   console.log(column)
   if (column && (column.type === 'selection' || column.property === 'tag')) {
@@ -1275,6 +1363,16 @@ function batchRefresh() {
       })
   }
   embeddingContentDialogRef.value?.open(embeddingBatchDocument)
+}
+
+function batchTokenize() {
+  const arr: string[] = multipleSelection.value.map((v) => v.id)
+  const stateList = ['0', '1', '2', '3', '4', '5', 'n']
+  loadSharedApi({ type: 'document', systemType: apiType.value })
+    .putBatchTokenize(id, arr, stateList, loading)
+    .then(() => {
+      multipleTableRef.value?.clearSelection()
+    })
 }
 
 function downloadDocument(row: any) {

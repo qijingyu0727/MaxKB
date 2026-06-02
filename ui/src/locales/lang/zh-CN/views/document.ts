@@ -9,8 +9,8 @@ export default {
     migration: '迁移',
     cancelGenerateQuestion: '取消生成问题',
     cancelVectorization: '取消向量化',
+    cancelTokenize: '取消分词索引',
     cancelGenerate: '取消生成',
-    export: '导出',
     exportDocument: '导出文档',
     exportKnowledge: '导出知识库',
     download: '下载原文档',
@@ -130,6 +130,7 @@ export default {
     PENDING: '排队中',
     GENERATE: '生成中',
     SYNC: '同步中',
+    TOKENIZE: '分词索引中',
     finish: '完成',
   },
   enableStatus: {
