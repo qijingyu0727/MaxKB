@@ -6,24 +6,17 @@
       width:
         formfield.input_type === 'SwitchInput' || formfield.input_type === 'DatePicker'
           ? 'auto'
-          : '150px',
+          : formfield.input_type === 'Model' ? '165px' : '150px',
     }"
   >
     <div
       v-if="formfield.input_type === 'SwitchInput'"
-      style="
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        border: 1px solid #dcdfe6;
-        border-radius: 4px;
-        padding: 0 8px;
-        height: 32px;
-      "
+      class="flex align-center border border-r-6"
+      style="padding: 4px 10px"
     >
-      <span style="font-size: 13px; color: #606266; white-space: nowrap" :title="switchLabel">{{
-        switchLabel
-      }}</span>
+      <span :title="switchLabel" class="mr-4 lighter ellipsis" style="max-width: 75px;">
+        {{ switchLabel }}
+      </span>
       <component
         ref="componentFormRef"
         :view="view"
@@ -34,6 +27,7 @@
         :field="formfield.field"
         v-bind="attrs"
         :formfield-list="formfieldList"
+        size="small"
       ></component>
     </div>
     <component
@@ -94,7 +88,11 @@ const itemValue = computed({
 
 const attrs = computed(() => {
   const base = props.formfield.attrs || {}
-  if (props.formfield.input_type === 'MultiSelect' || props.formfield.input_type === 'Knowledge') {
+  if (
+    props.formfield.input_type === 'MultiSelect' ||
+    props.formfield.input_type === 'Knowledge' ||
+    (props.formfield.input_type === 'TreeSelect' && base.multiple)
+  ) {
     return {
       ...base,
       'collapse-tags': true,
@@ -110,7 +108,7 @@ const switchLabel = computed(() => {
     typeof props.formfield.label === 'string'
       ? props.formfield.label
       : props.formfield.label?.label || props.formfield.field
-  return label.length > 5 ? label.slice(0, 5) + '…' : label
+  return label
 })
 
 const initTrigger = (self: any, trigger_field_dict?: Dict<any>) => {

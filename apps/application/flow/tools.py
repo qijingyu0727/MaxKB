@@ -397,8 +397,6 @@ def _extract_tool_id(raw_id):
 
 async def _initialize_skills(mcp_servers, temp_dir):
     skills_dir = os.path.join(temp_dir, "skills")
-    # 校验代码是否包括禁止的关键字
-    ToolExecutor().validate_mcp_transport(mcp_servers)
     mcp_config = json.loads(mcp_servers)
     if "skills" in mcp_config:
         skill_file_items = mcp_config.pop("skills")
@@ -768,9 +766,9 @@ def mcp_response_generator(
     loop = get_global_loop()  # 使用共享循环
     # 创建临时文件夹
     if chat_id:
-        temp_dir = os.path.join("/tmp", chat_id[:8])
+        temp_dir = os.path.join("/tmp", chat_id)
     else:
-        temp_dir = os.path.join("/tmp", uuid.uuid7().hex[:8])
+        temp_dir = os.path.join("/tmp", str(uuid.uuid7()))
     skills_dir = os.path.join(temp_dir, "skills")
     os.makedirs(skills_dir, exist_ok=True)
 
@@ -1033,7 +1031,10 @@ def get_workflow_args(tool, qv):
             input_field_list = node.get("properties").get("user_input_field_list")
             return build_schema(
                 {
-                    field.get("field"): (get_type(field.get("type")), Field(..., description=field.get("desc")))
+                    field.get("field"): (
+                        get_type(field.get("type")),
+                        Field(..., required=True, description=field.get("desc")) if field.get("is_required") else Field(default=None, required=False, description=field.get("desc"))
+                    )
                     for field in input_field_list
                 }
             )

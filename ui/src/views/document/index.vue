@@ -139,6 +139,7 @@
                   @change="search_type_change"
                 >
                   <el-option :label="$t('common.name')" value="name" />
+                  <el-option :label="$t('common.creator')" value="create_user" />
                 </el-select>
                 <el-input
                   v-if="search_type === 'name'"
@@ -148,6 +149,23 @@
                   style="width: 220px"
                   clearable
                 />
+                <el-select
+                  v-else-if="search_type === 'create_user'"
+                  v-model="search_form.create_user"
+                  @change="searchHandle"
+                  filterable
+                  clearable
+                  remote
+                  :remote-method="getUserList"
+                  style="width: 190px"
+                >
+                  <el-option
+                    v-for="u in user_options"
+                    :key="u.id"
+                    :value="u.id"
+                    :label="u.nick_name"
+                  />
+                </el-select>
               </div>
 
               <el-tooltip
@@ -185,6 +203,7 @@
             :row-key="(row: any) => row.id"
             :storeKey="storeKey"
             @cell-click="cellClickHandle"
+            border
           >
             <el-table-column
               type="selection"
@@ -478,6 +497,7 @@
                 }}
               </template>
             </el-table-column>
+            <el-table-column prop="nick_name" :label="$t('common.creator')" show-overflow-tooltip />
             <el-table-column
               prop="create_time"
               :label="$t('common.createTime')"
@@ -579,7 +599,10 @@
                   >
                     <span class="mr-4" v-if="permissionPrecise.doc_vector(id)">
                       <el-button type="primary" text @click.stop="tokenizeDocument(row)">
-                        <AppIcon iconName="app-document-wordIndexing" style="font-size: 16px"></AppIcon>
+                        <AppIcon
+                          iconName="app-document-wordIndexing"
+                          style="font-size: 16px"
+                        ></AppIcon>
                       </el-button>
                     </span>
                   </el-tooltip>
@@ -708,7 +731,7 @@
                     placement="top"
                     v-else
                   >
-                    <span class="mr-4"  v-if="permissionPrecise.vector(id)">
+                    <span class="mr-4" v-if="permissionPrecise.vector(id)">
                       <el-button type="primary" text @click.stop="refreshDocument(row)">
                         <AppIcon iconName="app-document-refresh" style="font-size: 16px"></AppIcon>
                       </el-button>
@@ -743,22 +766,14 @@
                   >
                     <span class="mr-4" v-if="permissionPrecise.doc_vector(id)">
                       <el-button type="primary" text @click.stop="tokenizeDocument(row)">
-                        <AppIcon iconName="app-document-wordIndexing" style="font-size: 16px"></AppIcon>
+                        <AppIcon
+                          iconName="app-document-wordIndexing"
+                          style="font-size: 16px"
+                        ></AppIcon>
                       </el-button>
                     </span>
                   </el-tooltip>
-                  <el-tooltip
-                    effect="dark"
-                    :content="$t('common.setting')"
-                    placement="top"
-                    v-if="permissionPrecise.doc_edit(id)"
-                  >
-                    <span class="mr-4">
-                      <el-button type="primary" text @click.stop="settingDoc(row)">
-                        <AppIcon iconName="app-setting"></AppIcon>
-                      </el-button>
-                    </span>
-                  </el-tooltip>
+
                   <span @click.stop>
                     <el-dropdown trigger="click" v-if="MoreFilledPermission2(id)">
                       <el-button text type="primary">
@@ -766,6 +781,13 @@
                       </el-button>
                       <template #dropdown>
                         <el-dropdown-menu>
+                          <el-dropdown-item
+                            @click="settingDoc(row)"
+                            v-if="permissionPrecise.doc_edit(id)"
+                          >
+                            <AppIcon iconName="app-setting" class="color-secondary"></AppIcon>
+                            {{ $t('common.setting') }}</el-dropdown-item
+                          >
                           <el-dropdown-item
                             @click="syncDocument(row)"
                             v-if="permissionPrecise.sync(id)"
@@ -913,13 +935,14 @@ import TagDrawer from './tag/TagDrawer.vue'
 import TagSettingDrawer from './tag/TagSettingDrawer.vue'
 import AddTagDialog from '@/views/document/tag/MulAddTagDialog.vue'
 import ExecutionRecord from '@/views/knowledge-workflow/component/execution-record/ExecutionRecordDrawer.vue'
+import UserApi from '@/api/user/user.ts'
 
 const route = useRoute()
 const router = useRouter()
 const {
   params: { id, folderId, type }, // id为knowledgeID
 } = route as any
-const { common } = useStore()
+const { common, user } = useStore()
 const storeKey = 'documents'
 onBeforeRouteUpdate(() => {
   common.savePage(storeKey, null)
@@ -941,7 +964,9 @@ onBeforeRouteLeave((to: any) => {
 const isShared = computed(() => {
   return folderId === 'share'
 })
-
+const isSystemShare = computed(() => {
+  return apiType.value === 'systemShare'
+})
 const apiType = computed(() => {
   if (route.path.includes('shared')) {
     return 'systemShare'
@@ -1618,6 +1643,35 @@ function addTags(tags: any, rowId?: string) {
       getList()
       clearSelection()
     })
+}
+const user_options = ref<any[]>([])
+function searchHandle() {
+  paginationConfig.value.current_page = 1
+  getList()
+}
+
+function getUserList(query: string) {
+  let workspaceId = user.getWorkspaceId()
+  if (isSystemShare.value) {
+    workspaceId = ''
+  }
+  const actualWorkspaceId = workspaceId || (query ? { nick_name: query } : '')
+  const actualQuery = workspaceId ? (query ? { nick_name: query } : '') : undefined
+  if (apiType.value === 'systemManage') {
+    UserApi.getAllMemberList(query ? { nick_name: query } : '')
+      .then((res: any) => {
+        user_options.value = res.data || []
+      })
+      .catch(() => {
+        user_options.value = []
+      })
+  } else {
+    loadSharedApi({ type: 'workspace', isShared: isShared.value, systemType: apiType.value })
+      .getAllMemberList(actualWorkspaceId, actualQuery, loading)
+      .then((res: any) => {
+        user_options.value = res.data
+      })
+  }
 }
 
 onMounted(() => {

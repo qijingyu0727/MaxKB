@@ -30,19 +30,37 @@ class AliyunBaiLianTTSModelGeneralParams(BaseForm):
             {'label': _('Long Xiaobai'), 'value': 'longxiaobai'},
             {'label': _('Long Laotie'), 'value': 'longlaotie'},
             {'label': _('Long Shu'), 'value': 'longshu'},
-            {'label': _('Long Shuo'), 'value': 'longshuo'},
-            {'label': _('Long Jing'), 'value': 'longjing'},
-            {'label': _('Long Miao'), 'value': 'longmiao'},
-            {'label': _('Long Yue'), 'value': 'longyue'},
-            {'label': _('Long Yuan'), 'value': 'longyuan'},
-            {'label': _('Long Fei'), 'value': 'longfei'},
-            {'label': _('Long Jielidou'), 'value': 'longjielidou'},
-            {'label': _('Long Tong'), 'value': 'longtong'},
-            {'label': _('Long Xiang'), 'value': 'longxiang'},
-            {'label': 'Stella', 'value': 'loongstella'},
-            {'label': 'Bella', 'value': 'loongbella'},
-            {'label': 'longxiaochun_v2', 'value': 'longxiaochun_v2'},
-            {'label': 'longyingmu_v3', 'value': 'longyingmu_v3'},
+        ]
+    )
+
+    speech_rate = SliderField(
+        TooltipLabel(_('Speaking speed'), _('[0.5, 2], the default is 1, usually one decimal place is enough')),
+        required=True,
+        default_value=1,
+        _min=0.5,
+        _max=2,
+        _step=0.1,
+        precision=1
+    )
+
+
+class AliyunBaiLianQwenTTSModelGeneralParams(BaseForm):
+    """
+    Parameters class for the Aliyun BaiLian Qwen TTS model.
+    Defines fields such as voice and speech rate.
+    """
+
+    voice = SingleSelect(
+        TooltipLabel(_('Timbre'), _('Please select a system voice supported by Qwen-TTS')),
+        required=True,
+        default_value='Cherry',
+        text_field='value',
+        value_field='value',
+        option_list=[
+            {'label': 'Cherry', 'value': 'Cherry'},
+            {'label': 'Serena', 'value': 'Serena'},
+            {'label': 'Ethan', 'value': 'Ethan'},
+            {'label': 'Chelsie', 'value': 'Chelsie'},
         ]
     )
 
@@ -140,4 +158,6 @@ class AliyunBaiLianTTSModelCredential(BaseForm, BaseModelCredential):
         :param model_name: Name of the model.
         :return: Parameter setting form.
         """
+        if 'qwen' in model_name and 'tts' in model_name:
+            return AliyunBaiLianQwenTTSModelGeneralParams()
         return AliyunBaiLianTTSModelGeneralParams()

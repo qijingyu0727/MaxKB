@@ -12,22 +12,24 @@
           'padding-right': showUserAvatar ? 'var(--padding-left)' : '0',
         }"
       >
-        <el-card
-          v-if="!chatRecord.write_ed && progress"
-          shadow="always"
-          class="border-r-8 mb-8"
-          style="--el-card-padding: 1px 16px; width: fit-content"
-        >
-          <div class="flex align-center">
-            <component
-              :is="iconComponent(`${progress.node_type}-icon`)"
-              class="mr-8"
-              :size="16"
-              style="--el-avatar-border-radius: 3px"
-            ></component>
-            <MdRenderer :source="progress.content"></MdRenderer>
-          </div>
-        </el-card>
+        <template v-if="type === 'debug-ai-chat' ? true : application.show_exec">
+          <el-card
+            v-if="!chatRecord.write_ed && progress && index >= answer_text_list.length - 1 && !chatRecord.is_stop"
+            shadow="always"
+            class="border-r-8 mb-8"
+            style="--el-card-padding: 1px 16px; width: fit-content"
+          >
+            <div class="flex align-center">
+              <component
+                :is="iconComponent(`${progress.node_type}-icon`)"
+                class="mr-8"
+                :size="16"
+                style="--el-avatar-border-radius: 3px"
+              ></component>
+              <MdRenderer :source="progress.content"></MdRenderer>
+            </div>
+          </el-card>
+        </template>
         <el-card shadow="always" class="border-r-8" style="--el-card-padding: 6px 16px">
           <MdRenderer
             v-if="
@@ -97,7 +99,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import KnowledgeSourceComponent from '@/components/ai-chat/component/knowledge-source-component/index.vue'
 import MdRenderer from '@/components/markdown/MdRenderer.vue'
 import OperationButton from '@/components/ai-chat/component/operation-button/index.vue'
@@ -208,11 +210,5 @@ const stopChat = (chat: chatType) => {
 const startChat = (chat: chatType) => {
   props.chatManagement.write(chat.id)
 }
-
-onMounted(() => {
-  bus.on('chat:stop', () => {
-    stopChat(props.chatRecord)
-  })
-})
 </script>
 <style lang="scss" scoped></style>

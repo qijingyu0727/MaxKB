@@ -81,11 +81,21 @@ def is_workspace_manage(user_id: str, workspace_id: str):
             role__type=RoleConstants.WORKSPACE_MANAGE.value.__str__()).exists()
     return QuerySet(User).filter(id=user_id, role=RoleConstants.ADMIN.value.__str__()).exists()
 
+
 def is_workspace_manage_permission_read(user_id: str, workspace_id: str, permission_id):
     workspace_user_role_mapping_model = DatabaseModelManage.get_model("workspace_user_role_mapping")
     role_permission_mapping_model = DatabaseModelManage.get_model("role_permission_mapping_model")
     is_x_pack_ee = workspace_user_role_mapping_model is not None and role_permission_mapping_model is not None
     if is_x_pack_ee:
+        # 内置工作空间管理员（role_id 固定为 'WORKSPACE_MANAGE'）拥有全量权限，直接放行
+        is_builtin_manage = QuerySet(workspace_user_role_mapping_model).filter(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            role_id=RoleConstants.WORKSPACE_MANAGE.value.__str__()
+        ).exists()
+        if is_builtin_manage:
+            return True
+        # 继承（自定义）工作空间管理员：需被显式授予对应权限
         has_permission = QuerySet(role_permission_mapping_model).filter(
             role__userrolerelation__user_id=user_id,
             role__userrolerelation__workspace_id=workspace_id,
@@ -93,7 +103,9 @@ def is_workspace_manage_permission_read(user_id: str, workspace_id: str, permiss
             role__type=RoleConstants.WORKSPACE_MANAGE.value.__str__()
         ).exists()
         return has_permission
-    return True
+    return QuerySet(User).filter(id=user_id, role=RoleConstants.ADMIN.value.__str__()).exists()
+
+
 def get_workspace_list_by_user(user_id):
     get_workspace_list = DatabaseModelManage.get_model('get_workspace_list_by_user')
     license_is_valid = DatabaseModelManage.get_model('license_is_valid') or (lambda: False)
@@ -1107,7 +1119,7 @@ class SendEmailSerializer(serializers.Serializer):
         # 获取邮件模板
         language = get_language()
         file = open(
-            os.path.join(PROJECT_DIR, "apps", "common", 'template', f'email_template_{to_locale(language)}.html'), "r",
+            os.path.join(PROJECT_DIR, "apps", "common", 'template', f'email_template_{language}.html'), "r",
             encoding='utf-8')
         content = file.read()
         file.close()
@@ -1179,7 +1191,7 @@ class SwitchLanguageSerializer(serializers.Serializer):
         self.is_valid(raise_exception=True)
         language = self.data.get('language')
         support_language_list = CONFIG.get_languages()
-        #这个是一个list 完事是对象 key是语言的key value是语言的value  我只需要提取语言的key就行
+        # 这个是一个list 完事是对象 key是语言的key value是语言的value  我只需要提取语言的key就行
         support_keys = [lang[0] for lang in support_language_list]
         # support_language_list = ['zh-CN', 'zh-Hant', 'en-US'] en_US,ja,zh_CN,zh_Hant
         if not support_keys.__contains__(language):

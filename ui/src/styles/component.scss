@@ -37,6 +37,18 @@
     }
   }
 }
+.complex-select {
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+
+  &__left {
+    .el-select__wrapper {
+      box-shadow: none !important;
+      border-radius: var(--el-border-radius-base) 0 0 var(--el-border-radius-base);
+      padding-right: 0 !important;
+    }
+  }
+}
 
 // 编辑头像
 .edit-avatar {
@@ -400,6 +412,15 @@
   .hover:hover {
     color: var(--el-color-primary-light-5);
   }
+}
+
+// card中的progress样式
+.card-progress {
+  position: absolute;
+  bottom: 0px;
+  left: 0;
+  width: 100%;
+
 }
 
 // 批量操作拦

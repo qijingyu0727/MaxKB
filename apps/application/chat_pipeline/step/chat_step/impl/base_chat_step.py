@@ -366,7 +366,6 @@ class BaseChatStep(IChatStep):
         if not mcp_tool_ids:
             mcp_tool_ids = []
         if mcp_source == "custom" and mcp_servers:
-            ToolExecutor().validate_mcp_transport(mcp_servers)
             mcp_servers_config = json.loads(mcp_servers)
         elif mcp_tool_ids:
             mcp_tools = QuerySet(Tool).filter(id__in=mcp_tool_ids).values()
@@ -385,10 +384,11 @@ class BaseChatStep(IChatStep):
                 if tool is None or tool.is_active is False:
                     continue
                 executor = ToolExecutor()
+                init_params_default_value = {i["field"]: i.get('default_value') for i in tool.init_field_list}
                 if tool.init_params is not None:
-                    tool_init_params = json.loads(rsa_long_decrypt(tool.init_params))
+                    tool_init_params = init_params_default_value | json.loads(rsa_long_decrypt(tool.init_params))
                 else:
-                    tool_init_params = {i["field"]: i.get("default_value") for i in tool.init_field_list}
+                    tool_init_params = init_params_default_value
                 tool_config = executor.get_tool_mcp_config(tool, tool_init_params)
 
                 mcp_servers_config[str(tool.id)] = tool_config

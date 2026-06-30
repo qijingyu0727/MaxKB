@@ -209,6 +209,7 @@
         @keydown.enter="sendChatHandle($event)"
         @paste="handlePaste"
         class="chat-operate-textarea"
+        clearable
       />
       <div class="operate flex-between">
         <div>
@@ -219,8 +220,8 @@
             <span v-if="mode === 'mobile'">
               <el-button text @click="switchMicrophone(!isMicrophone)">
                 <!-- 键盘 -->
-                <AppIcon v-if="isMicrophone" iconName="app-keyboard"></AppIcon>
-                <el-icon v-else>
+                <AppIcon v-if="isMicrophone" iconName="app-keyboard" :size="20"></AppIcon>
+                <el-icon v-else :size="20">
                   <!-- 录音 -->
                   <Microphone />
                 </el-icon>
@@ -233,7 +234,7 @@
                 @click="startRecording"
                 v-if="recorderStatus === 'STOP'"
               >
-                <el-icon>
+                <el-icon :size="20">
                   <Microphone />
                 </el-icon>
               </el-button>
@@ -248,7 +249,7 @@
                   @click="stopRecording"
                   :loading="recorderStatus === 'TRANSCRIBING'"
                 >
-                  <AppIcon iconName="app-video-stop"></AppIcon>
+                  <AppIcon iconName="app-video-stop" :size="20"></AppIcon>
                 </el-button>
               </div>
             </span>
@@ -264,7 +265,7 @@
                 class="mt-4"
                 @click="openUrlSetting"
               >
-                <el-icon><Paperclip /></el-icon>
+                <el-icon :size="20"><Paperclip /></el-icon>
               </el-button>
               <!-- 没有URL地址 -->
               <el-upload
@@ -294,7 +295,7 @@
                     </div>
                   </template>
                   <el-button text :disabled="checkMaxFilesLimit() || loading" class="mt-4">
-                    <el-icon><Paperclip /></el-icon>
+                    <el-icon :size="20"><Paperclip /></el-icon>
                   </el-button>
                 </el-tooltip>
               </el-upload>
@@ -446,14 +447,8 @@ const chatId_context = computed({
     emit('update:chatId', v)
   },
 })
-const localLoading = computed({
-  get: () => {
-    return props.loading
-  },
-  set: (v) => {
-    emit('update:loading', v)
-  },
-})
+// 语音转写的请求 spinner, 独立于 loading prop(loading 现在是父级单向传入的"当前会话生成态")
+const speechLoading = ref(false)
 
 const showURLSetting = ref(false)
 const urlForm = reactive({
@@ -529,7 +524,9 @@ const uploadFile = async (file: any, fileList: any) => {
     uploadVideoList.value.length +
     uploadOtherList.value.length
   if (file_limit_once >= maxFiles) {
-    MsgWarning(t('aiChat.uploadFile.limitMessage1') + maxFiles + t('aiChat.uploadFile.limitMessage2'))
+    MsgWarning(
+      t('aiChat.uploadFile.limitMessage1') + maxFiles + t('aiChat.uploadFile.limitMessage2'),
+    )
     fileList.splice(0, fileList.length, ...fileList.slice(0, maxFiles))
     return
   }
@@ -805,9 +802,10 @@ const uploadRecording = async (audioBlob: Blob) => {
     if (props.applicationDetails.stt_autosend) {
       bus.emit('on:transcribing', true)
     }
-    speechToTextAPI(props.applicationDetails.id as string, formData, localLoading)
+    speechToTextAPI(props.applicationDetails.id as string, formData, speechLoading)
       .then((response) => {
-        inputValue.value = typeof response.data === 'string' ? response.data : ''
+        const newText = typeof response.data === 'string' ? response.data : ''
+        inputValue.value = inputValue.value ? `${inputValue.value} ${newText}` : newText
         // 自动发送
         if (props.applicationDetails.stt_autosend) {
           nextTick(() => {
@@ -1191,7 +1189,9 @@ async function saveUrl() {
     urls.length + file_limit_once >= fileLimit ||
     urls.length > fileLimit
   ) {
-    MsgWarning(t('aiChat.uploadFile.limitMessage1') + maxFiles + t('aiChat.uploadFile.limitMessage2'))
+    MsgWarning(
+      t('aiChat.uploadFile.limitMessage1') + maxFiles + t('aiChat.uploadFile.limitMessage2'),
+    )
     return
   }
   // 允许的 MIME 类型
@@ -1352,10 +1352,6 @@ async function saveUrl() {
 
     .operate {
       padding: 6px 10px;
-
-      .el-icon {
-        font-size: 20px;
-      }
 
       .sent-button {
         max-height: none;

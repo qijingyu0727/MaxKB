@@ -1,5 +1,5 @@
 <template>
-  <div class="inline-params" v-if="fieldList.length > 0">
+  <div class="inline-params" v-if="fieldList.length > 0 || apiInput">
     <template v-for="item in exposedFields" :key="item.field">
       <InlineFormItem
         v-if="show(item)"
@@ -15,7 +15,12 @@
         :formfield-list="fieldList"
       />
     </template>
-    <el-button style="padding: 8px" v-if="dialogFields.length > 0" @click="emit('openDialog')">
+    <el-button
+      ref="triggerBtnRef"
+      style="padding: 8px"
+      v-if="dialogFields.length > 0 || apiInput"
+      @click="emit('openDialog')"
+    >
       <AppIcon iconName="app-all-menu"></AppIcon>
     </el-button>
   </div>
@@ -34,9 +39,12 @@ const props = defineProps<{
   application: any
   formData: any
   maxExposed?: number
+  apiInput?: boolean
 }>()
 
 const emit = defineEmits(['update:formData', 'openDialog'])
+
+const triggerBtnRef = ref()
 
 const fieldList = ref<FormField[]>([])
 const formValue = ref<Dict<any>>({})
@@ -60,9 +68,9 @@ watch(
       formValue.value = val
       for (const field of fieldList.value) {
         if (
-          field.default_value &&
-          !formValue.value[field.field] &&
-          formValue.value[field.field] !== false &&
+          field.default_value !== undefined &&
+          field.default_value !== null &&
+          (formValue.value[field.field] === undefined || formValue.value[field.field] === null) &&
           (field.show_default_value === true || field.show_default_value === undefined)
         ) {
           formValue.value[field.field] = field.default_value
@@ -196,6 +204,7 @@ const show = (field: FormField) => {
 }
 
 defineExpose({
+  triggerBtnRef,
   validate: () => {
     for (const field of fieldList.value) {
       if (!show(field)) {
@@ -241,15 +250,12 @@ const trigger = (
 
 const initDefaultData = (formField: FormField) => {
   if (
-    formField.default_value &&
-    (formValue.value[formField.field] === undefined ||
-      formValue.value[formField.field] === null ||
-      !formValue.value[formField.field]) &&
-    formValue.value[formField.field] != false
+    formField.default_value !== undefined &&
+    formField.default_value !== null &&
+    (formValue.value[formField.field] === undefined || formValue.value[formField.field] === null) &&
+    (formField.show_default_value === true || formField.show_default_value === undefined)
   ) {
-    if (formField.show_default_value === true || formField.show_default_value === undefined) {
-      formValue.value[formField.field] = formField.default_value
-    }
+    formValue.value[formField.field] = formField.default_value
   }
 }
 

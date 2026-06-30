@@ -71,6 +71,7 @@ export default {
     label: '状态',
     enable: '启用',
     disable: '禁用',
+    enableStatus: '启用状态',
     enabled: '已启用',
     disabled: '已禁用',
     enableSuccess: '启用成功',
@@ -152,6 +153,7 @@ export default {
     subTitle: '查看执行记录',
   },
   sourceType: '资源类型',
+  source: '来源',
   knowledgeImportTip:
     '导入创建知识库成功，文档数据未向量化，请先设置知识库的向量模型，并对文档进行向量化操作',
   import: '导入',

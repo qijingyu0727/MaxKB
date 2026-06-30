@@ -57,7 +57,7 @@
             effect="dark"
             :content="$t('aiChat.share')"
             placement="top"
-            v-if="!showSelection && currentChatId !== 'new'"
+            v-if="!showSelection && currentChatId !== 'new' && applicationDetail.show_share"
           >
             <el-button class="mr-16" text @click="clickShareHandle" :disabled="AiChatRef?.loading">
               <AppIcon iconName="app-share"></AppIcon>
@@ -77,6 +77,7 @@
           :chatId="currentChatId"
           type="ai-chat"
           @refresh="refresh"
+          @openChat="refresh"
           @scroll="handleScroll"
           v-model:selection="showSelection"
         >
@@ -106,6 +107,7 @@ import useStore from '@/stores'
 import { t } from '@/locales'
 import ChatHistoryDrawer from './component/ChatHistoryDrawer.vue'
 import chatAPI from '@/api/chat/chat'
+import { ChatManagement } from '@/api/type/application'
 
 provide('scrollData', loadInfiniteScroll)
 provide('chatLogPagination', () => chatLogPagination)
@@ -172,6 +174,7 @@ function deleteLog(row: any) {
     chatLogData.value = chatLogData.value.filter((item) => item.id !== row.id)
   })
 }
+
 function handleScroll(event: any) {
   if (
     currentChatId.value !== 'new' &&
@@ -190,6 +193,7 @@ const newObj = {
   id: 'new',
   abstract: t('aiChat.createChat'),
 }
+
 function newChat() {
   paginationConfig.current_page = 1
   currentRecordList.value = []
@@ -205,6 +209,7 @@ const chatLogPagination = ref({
   page_size: 20,
   current_page: 1,
 })
+
 function getChatLog(refresh?: boolean) {
   chatAPI
     .pageChat(chatLogPagination.value.current_page, chatLogPagination.value.page_size, left_loading)
@@ -219,8 +224,29 @@ function getChatLog(refresh?: boolean) {
       }
     })
 }
+
 function loadInfiniteScroll() {
   getChatLog(true)
+}
+
+/**
+ * 切回会话时, 把内存中属于该会话、仍在后台流式输出的在途消息接回列表,
+ * 这样切走时没被打断的流, 切回来能继续实时显示。
+ * - 与 DB 记录 record_id 相同的, 用 live 对象覆盖(否则会显示落库前的空答案)
+ * - DB 里还没有的(尚未落库), 追加到末尾
+ */
+function attachActiveStreams() {
+  const activeChats = ChatManagement.getActiveByChatId(currentChatId.value)
+  if (!activeChats.length) {
+    return
+  }
+  const activeMap = new Map(activeChats.map((chat) => [chat.record_id, chat]))
+  const existIds = new Set(currentRecordList.value.map((v: any) => v.record_id))
+  const merged = currentRecordList.value.map((v: any) =>
+    activeMap.has(v.record_id) ? activeMap.get(v.record_id) : v,
+  )
+  const appendList = activeChats.filter((chat) => !existIds.has(chat.record_id))
+  currentRecordList.value = [...merged, ...appendList]
 }
 
 function getChatRecord() {
@@ -242,6 +268,7 @@ function getChatRecord() {
         a.create_time.localeCompare(b.create_time),
       )
       if (paginationConfig.current_page === 1) {
+        attachActiveStreams()
         nextTick(() => {
           // 将滚动条滚动到最下面
           AiChatRef.value.setScrollBottom()
@@ -276,6 +303,7 @@ function refresh(id: string) {
   chatLogData.value = []
   getChatLog(true)
 }
+
 /**
  *初始化历史对话记录
  */
@@ -290,6 +318,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .chat-mobile {
   overflow: hidden;
+
   &__header {
     background: var(--app-header-bg-color);
     position: fixed;
@@ -302,6 +331,7 @@ onMounted(() => {
     box-sizing: border-box;
     border-bottom: 1px solid var(--el-border-color);
   }
+
   &__main {
     padding-top: calc(var(--app-header-height) + 16px);
     height: calc(100vh - var(--app-header-height) - 16px);

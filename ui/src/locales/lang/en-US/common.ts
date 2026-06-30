@@ -69,6 +69,7 @@ export default {
     label: 'Status',
     enable: 'Enable',
     disable: 'Disable',
+    enableStatus: 'Enable status',
     enabled: 'Enabled',
     disabled: 'Disabled',
     enableSuccess: 'Successful',
@@ -151,6 +152,7 @@ export default {
     subTitle: 'View Execution Record',
   },
   sourceType: 'Source type',
+  source: 'Source',
   knowledgeImportTip:
     'Knowledge base imported successfully. Documents have not been vectorized yet. Please configure the embedding model and vectorize the documents.',
   import: 'Import',
