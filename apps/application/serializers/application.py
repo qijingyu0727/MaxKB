@@ -41,6 +41,7 @@ from common.utils.common import (
 )
 from common.utils.logger import maxkb_logger
 from common.utils.tool_code import ToolExecutor
+from common.utils.url_validator import ALLOWED_CALLBACK_HOSTS, ALLOWED_DOWNLOAD_HOSTS, validate_trusted_url
 from django.core import validators
 from django.db import models, transaction
 from django.db.models import Q, QuerySet
@@ -85,7 +86,7 @@ def get_bound_tool_ids(instance: Dict) -> List[str]:
     """
     tool_ids = set()
     for key in ("tool_ids", "skill_tool_ids", "mcp_tool_ids"):
-        for tool_id in (instance.get(key) or []):
+        for tool_id in instance.get(key) or []:
             tool_ids.add(str(tool_id))
     if instance.get("mcp_tool_id"):
         tool_ids.add(str(instance.get("mcp_tool_id")))
@@ -95,7 +96,7 @@ def get_bound_tool_ids(instance: Dict) -> List[str]:
             if node_data.get(key):
                 tool_ids.add(str(node_data.get(key)))
         for key in ("mcp_tool_ids", "tool_ids", "skill_tool_ids"):
-            for tool_id in (node_data.get(key) or []):
+            for tool_id in node_data.get(key) or []:
                 tool_ids.add(str(tool_id))
 
     _walk_workflow_nodes(instance.get("work_flow"), collect)
@@ -108,11 +109,11 @@ def get_bound_application_ids(instance: Dict) -> List[str]:
     ai-chat-node 的 node_data 包含 application_ids 列表。
     """
     application_ids = set()
-    for app_id in (instance.get("application_ids") or []):
+    for app_id in instance.get("application_ids") or []:
         application_ids.add(str(app_id))
 
     def collect(node_data):
-        for app_id in (node_data.get("application_ids") or []):
+        for app_id in node_data.get("application_ids") or []:
             application_ids.add(str(app_id))
 
     _walk_workflow_nodes(instance.get("work_flow"), collect)
@@ -185,7 +186,9 @@ def validate_bound_tool_permissions(user_id: str, workspace_id: str, instance: D
     application_ids = get_bound_application_ids(instance)
     if application_ids:
         authorized_application_ids = set(get_authorized_application_ids(user_id, workspace_id, application_ids))
-        unauthorized_application_ids = [app_id for app_id in application_ids if app_id not in authorized_application_ids]
+        unauthorized_application_ids = [
+            app_id for app_id in application_ids if app_id not in authorized_application_ids
+        ]
         if unauthorized_application_ids:
             message = lazy_format(
                 _("No permission to use application(s): {application_ids}"),
@@ -747,10 +750,10 @@ class ApplicationSerializer(serializers.Serializer):
         self.is_valid(raise_exception=True)
         work_flow_template = instance.get("work_flow_template")
         download_url = work_flow_template.get("downloadUrl")
-        if not download_url.startswith("https://apps-assets.fit2cloud.com/"):
+        if not validate_trusted_url(download_url, ALLOWED_DOWNLOAD_HOSTS):
             raise AppApiException(500, _("Illegal download url"))
         # 查找匹配的版本名称
-        res = requests.get(download_url, timeout=5)
+        res = requests.get(download_url, timeout=5, allow_redirects=False)
         app = ApplicationSerializer(
             data={"user_id": self.data.get("user_id"), "workspace_id": self.data.get("workspace_id")}
         ).import_(
@@ -771,9 +774,9 @@ class ApplicationSerializer(serializers.Serializer):
         )
         try:
             download_callback_url = work_flow_template.get("downloadCallbackUrl", "")
-            if not download_callback_url.startswith("https://apps.fit2cloud.com/"):
+            if not validate_trusted_url(download_callback_url, ALLOWED_CALLBACK_HOSTS):
                 raise AppApiException(500, _("Illegal download callback url"))
-            requests.get(download_callback_url, timeout=5)
+            requests.get(download_callback_url, timeout=5, allow_redirects=False)
         except Exception as e:
             maxkb_logger.error(f"callback appstore tool download error: {e}")
         return app
@@ -1267,6 +1270,14 @@ class ApplicationOperateSerializer(serializers.Serializer):
             workspace_id=workspace_id,
         )
         self.reset_application_version(work_flow_version, application)
+        # 如果是简易应用 需要存入 knowledge_ids
+        if application.type == ApplicationTypeChoices.SIMPLE:
+            work_flow_version.knowledge_ids = [
+                str(row.target_id)
+                for row in QuerySet(ResourceMapping).filter(
+                    source_id=str(application.id), source_type="APPLICATION", target_type="KNOWLEDGE"
+                )
+            ]
         work_flow_version.save()
         access_token = hashlib.md5(str(uuid.uuid7()).encode()).hexdigest()[8:24]
         application_access_token = QuerySet(ApplicationAccessToken).filter(application_id=application.id).first()
@@ -1482,10 +1493,10 @@ class ApplicationOperateSerializer(serializers.Serializer):
         self.is_valid(raise_exception=True)
         work_flow_template = instance.get("work_flow_template")
         download_url = work_flow_template.get("downloadUrl")
-        if not download_url.startswith("https://apps-assets.fit2cloud.com/"):
+        if not validate_trusted_url(download_url, ALLOWED_DOWNLOAD_HOSTS):
             raise AppApiException(500, _("Illegal download url"))
         # 查找匹配的版本名称
-        res = requests.get(download_url, timeout=5)
+        res = requests.get(download_url, timeout=5, allow_redirects=False)
         try:
             mk_instance = restricted_loads(res.content)
         except Exception as e:
@@ -1541,9 +1552,9 @@ class ApplicationOperateSerializer(serializers.Serializer):
             ).auth_resource_batch([t.id for t in tool_model_list])
         try:
             download_callback_url = work_flow_template.get("downloadCallbackUrl", "")
-            if not download_callback_url.startswith("https://apps.fit2cloud.com/"):
+            if not validate_trusted_url(download_callback_url, ALLOWED_CALLBACK_HOSTS):
                 raise AppApiException(500, _("Illegal download callback url"))
-            requests.get(download_callback_url, timeout=5)
+            requests.get(download_callback_url, timeout=5, allow_redirects=False)
         except Exception as e:
             maxkb_logger.error(f"callback appstore tool download error: {e}")
 
@@ -1779,6 +1790,9 @@ class ApplicationBatchOperateSerializer(serializers.Serializer):
             self.is_valid(raise_exception=True)
         id_list = instance.get("id_list")
         workspace_id = self.data.get("workspace_id")
+        id_list = list(
+            QuerySet(Application).filter(id__in=id_list, workspace_id=workspace_id).values_list("id", flat=True)
+        )
 
         QuerySet(ApplicationVersion).filter(application_id__in=id_list).delete()
         QuerySet(ResourceMapping).filter(Q(target_id__in=id_list) | Q(source_id__in=id_list)).delete()
@@ -1836,9 +1850,7 @@ class ApplicationBatchOperateSerializer(serializers.Serializer):
 
 class BatchCleanTimeSerializer(BatchSerializer):
     clean_time = serializers.IntegerField(required=True, min_value=1, max_value=100000, label=_("Clean time"))
-    file_clean_time = serializers.IntegerField(
-        required=True, min_value=1, max_value=100000, label=_("File clean time")
-    )
+    file_clean_time = serializers.IntegerField(required=True, min_value=1, max_value=100000, label=_("File clean time"))
 
     def is_valid(self, *, model=None, raise_exception=False):
         super().is_valid(model=model, raise_exception=True)

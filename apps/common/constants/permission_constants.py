@@ -201,6 +201,8 @@ class Operate(Enum):
     TRIGGER_DELETE = "READ+TRIGGER_DELETE"
     BATCH_DELETE = "READ+BATCH_DELETE"
     BATCH_MOVE = "READ+BATCH_MOVE"
+    TOKEN = "READ+TOKEN" # 分词索引
+    TO_WORKSPACE= "READ+TO_WORKSPACE" # 授权到空间
 
 
 class RoleGroup(Enum):
@@ -444,6 +446,8 @@ Permission_Label = {
     Group.KNOWLEDGE_FOLDER.value: _("Folder"),
     Group.TOOL_FOLDER.value: _("Folder"),
     # SystemGroup.RESOURCE.value: _("Resource"),
+    Operate.TOKEN.value: _("Token Index"),
+    Operate.TO_WORKSPACE.value: _("Authorize to Workspace")
 }
 
 
@@ -495,6 +499,10 @@ class PermissionConstants(Enum):
     """
     HOMEPAGE_READ = Permission(
         group=Group.HOMEPAGE, operate=Operate.READ, role_list=[RoleConstants.ADMIN, RoleConstants.USER],
+        parent_group=[WorkspaceGroup.HOMEPAGE, UserGroup.HOMEPAGE],
+    )
+    HOMEPAGE_EXPORT = Permission(
+        group=Group.HOMEPAGE, operate=Operate.EXPORT, role_list=[RoleConstants.ADMIN, RoleConstants.USER],
         parent_group=[WorkspaceGroup.HOMEPAGE, UserGroup.HOMEPAGE],
     )
     KNOWLEDGE = Permission(
@@ -862,6 +870,12 @@ class PermissionConstants(Enum):
         group=Group.KNOWLEDGE_DOCUMENT, operate=Operate.REPLACE,
         role_list=[RoleConstants.ADMIN, RoleConstants.USER],
         resource_permission_group_list=[ResourcePermissionConst.KNOWLEDGE_MANGE],
+        parent_group=[WorkspaceGroup.KNOWLEDGE, UserGroup.KNOWLEDGE]
+    )
+    KNOWLEDGE_DOCUMENT_TOKEN = Permission(
+        group=Group.KNOWLEDGE_DOCUMENT, operate=Operate.TOKEN,
+        role_list=[RoleConstants.ADMIN, RoleConstants.USER],
+        resource_permission_group_list=[ResourcePermissionConst.KNOWLEDGE_VIEW],
         parent_group=[WorkspaceGroup.KNOWLEDGE, UserGroup.KNOWLEDGE]
     )
     KNOWLEDGE_HIT_TEST = Permission(
@@ -1460,6 +1474,10 @@ class PermissionConstants(Enum):
         group=Group.SYSTEM_TOOL, operate=Operate.RECORD, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.SHARED_TOOL], is_ee=settings.edition == "EE"
     )
+    SHARED_TOOL_TO_WORKSPACE = Permission(
+        group=Group.SYSTEM_TOOL, operate=Operate.TO_WORKSPACE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_TOOL], is_ee=settings.edition == "EE"
+    )
     SHARED_KNOWLEDGE_READ = Permission(
         group=Group.SYSTEM_KNOWLEDGE, operate=Operate.READ, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
@@ -1494,6 +1512,10 @@ class PermissionConstants(Enum):
     )
     SHARED_KNOWLEDGE_RELATE_RESOURCE_VIEW = Permission(
         group=Group.SYSTEM_KNOWLEDGE, operate=Operate.RELATE_VIEW, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    SHARED_KNOWLEDGE_TO_WORKSPACE = Permission(
+        group=Group.SYSTEM_KNOWLEDGE, operate=Operate.TO_WORKSPACE, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
     )
     SHARED_KNOWLEDGE_WORKFLOW_READ = Permission(
@@ -1558,6 +1580,10 @@ class PermissionConstants(Enum):
     )
     SHARED_KNOWLEDGE_DOCUMENT_REPLACE = Permission(
         group=Group.SYSTEM_KNOWLEDGE_DOCUMENT, operate=Operate.REPLACE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    SHARED_KNOWLEDGE_DOCUMENT_TOKEN = Permission(
+        group=Group.SYSTEM_KNOWLEDGE_DOCUMENT, operate=Operate.TOKEN, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.SHARED_KNOWLEDGE], is_ee=settings.edition == "EE"
     )
     SHARED_KNOWLEDGE_TAG_READ = Permission(
@@ -1647,6 +1673,10 @@ class PermissionConstants(Enum):
     )
     SHARED_MODEL_RELATE_RESOURCE_VIEW = Permission(
         group=Group.SYSTEM_MODEL, operate=Operate.RELATE_VIEW, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.SHARED_MODEL], is_ee=settings.edition == "EE"
+    )
+    SHARED_MODEL_TO_WORKSPACE = Permission(
+        group=Group.SYSTEM_MODEL, operate=Operate.TO_WORKSPACE, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.SHARED_MODEL], is_ee=settings.edition == "EE"
     )
     RESOURCE_APPLICATION_READ = Permission(
@@ -1863,6 +1893,10 @@ class PermissionConstants(Enum):
     )
     RESOURCE_KNOWLEDGE_DOCUMENT_REPLACE = Permission(
         group=Group.SYSTEM_RES_KNOWLEDGE_DOCUMENT, operate=Operate.REPLACE, role_list=[RoleConstants.ADMIN],
+        parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
+    )
+    RESOURCE_KNOWLEDGE_DOCUMENT_TOKEN = Permission(
+        group=Group.SYSTEM_RES_KNOWLEDGE_DOCUMENT, operate=Operate.TOKEN, role_list=[RoleConstants.ADMIN],
         parent_group=[SystemGroup.RESOURCE_KNOWLEDGE], is_ee=settings.edition == "EE"
     )
     RESOURCE_KNOWLEDGE_HIT_TEST = Permission(

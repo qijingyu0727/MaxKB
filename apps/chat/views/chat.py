@@ -122,9 +122,9 @@ class AnonymousAuthentication(APIView):
             max_age=7 * 24 * 3600,
             path=f'{CONFIG.get_chat_path()}/{request.data.get("access_token")}',
             domain=None,
-            secure=True,
+            secure=request.scheme == "https",
             httponly=True,
-            samesite='Lax',
+            samesite="None",
         )
         return response
 
