@@ -130,6 +130,9 @@ def write_context(node_variable: Dict, workflow_variable: Dict, node: INode, wor
     _write_context(node_variable, workflow_variable, node, workflow, content, reasoning_content)
 
 
+CHAT_FILE_LIST_FIELDS = ("image_list", "document_list", "audio_list", "video_list", "other_list")
+
+
 def get_default_model_params_setting(model_id):
     model = QuerySet(Model).filter(id=model_id).first()
     credential = get_model_credential(model.provider, model.model_type, model.model_name)
@@ -200,6 +203,11 @@ class BaseChatNode(IChatNode):
             if reference_data and isinstance(reference_data, dict):
                 model_id = reference_data.get("model_id", model_id)
                 model_params_setting = reference_data.get("model_params_setting")
+        elif model_id_type == "default":
+            default_setting = self.workflow_manage.get_default_model_setting("LLM")
+            if default_setting.get("model_id"):
+                model_id = default_setting.get("model_id")
+            model_params_setting = default_setting.get("model_params_setting", model_params_setting)
         if model_id is None or model_id == "":
             raise Exception(_("Model is not allowed to be empty"))
 
@@ -397,7 +405,7 @@ class BaseChatNode(IChatNode):
                         500, _("Agent Key is required for agent tool 【{name}】").format(name=app.name)
                     )
                 executor = ToolExecutor()
-                app_config = executor.get_app_mcp_config(api_key)
+                app_config = executor.get_app_mcp_config(api_key, self.get_chat_files(), self.get_form_data())
                 mcp_servers_config[app.name] = app_config
 
         if skill_tool_ids and len(skill_tool_ids) > 0:
@@ -464,6 +472,39 @@ class BaseChatNode(IChatNode):
 
         return None
 
+    def get_chat_files(self):
+        """
+        获取本次对话上传的文件, 用于透传给被当作工具调用的应用/MCP
+        """
+        chat_files = {}
+        for field in CHAT_FILE_LIST_FIELDS:
+            file_list = getattr(self.workflow_manage, field, None) or []
+            items = [
+                {key: item.get(key) for key in ("name", "url", "file_id") if item.get(key) is not None}
+                for item in file_list
+                if isinstance(item, dict)
+            ]
+            if items:
+                chat_files[field] = items
+        return chat_files
+
+    def get_form_data(self):
+        """
+        获取当前会话的用户输入参数，用于透传给作为工具调用的子智能体。
+
+        循环工作流会创建独立的 WorkflowManage，并将自身的 form_data 初始化为
+        空字典，因此需要继续从父工作流中查找原始用户输入。
+        """
+        workflow_manage = self.workflow_manage
+        visited = set()
+        while workflow_manage is not None and id(workflow_manage) not in visited:
+            visited.add(id(workflow_manage))
+            form_data = getattr(workflow_manage, "form_data", None)
+            if isinstance(form_data, dict) and form_data:
+                return form_data.copy()
+            workflow_manage = getattr(workflow_manage, "parentWorkflowManage", None)
+        return {}
+
     def handle_variables(self, tool_params):
         # 处理参数中的变量
         for k, v in tool_params.items():
@@ -504,9 +545,10 @@ class BaseChatNode(IChatNode):
             images = self._process_images(image)
         if video and vision:
             videos = self._process_videos(video, model)
-        return HumanMessage(
-            content=[*videos, *images, {"type": "text", "text": self.workflow_manage.generate_prompt(prompt)}]
-        )
+        prompt = self.workflow_manage.generate_prompt(prompt)
+        if images or videos:
+            return HumanMessage(content=[*videos, *images, {"type": "text", "text": prompt}])
+        return HumanMessage(content=prompt)
 
     def is_vision(self):
         if "vision" in self.node_params_serializer.data:

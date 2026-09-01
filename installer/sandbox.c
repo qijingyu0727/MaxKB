@@ -325,6 +325,11 @@ int execve(const char *filename, char *const argv[], char *const envp[]) {
 int __execve(const char *filename, char *const argv[], char *const envp[]) {
     return execve(filename, argv, envp);
 }
+int fexecve(int fd, char *const argv[], char *const envp[]) {
+    RESOLVE_REAL(fexecve);
+    if (!allow_create_subprocess()) return throw_permission_denied_err(true, "create subprocess");
+    return real_fexecve(fd, argv, envp);
+}
 int execveat(int dirfd, const char *pathname,
              char *const argv[], char *const envp[], int flags) {
     RESOLVE_REAL(execveat);
@@ -472,7 +477,6 @@ static int allow_access_syscall() {
     ensure_config_loaded();
     return allow_syscall || !is_sandbox_user();
 }
-long (*real_syscall)(long, ...) = NULL;
 long syscall(long number, ...) {
     RESOLVE_REAL(syscall);
     va_list ap;
@@ -553,25 +557,12 @@ long syscall(long number, ...) {
 /**
  * 限制加载动态链接库
  */
-static int called_from_python_import() {
-    if (allow_dl_open) return 1;
-    void *buf[32];
-    int n = backtrace(buf, 32);
-    for (int i = 0; i < n; i++) {
-        Dl_info info;
-        if (dladdr(buf[i], &info) && info.dli_sname) {
-            if (strstr(info.dli_sname, "PyImport") || strstr(info.dli_sname, "_PyImport")) {
-                return 1;
-            }
-        }
-    }
-    throw_permission_denied_err(true, "open dynamic link library");
-    return 0;
-}
 static int is_allow_dl(const char *filename) {
     ensure_config_loaded();
-    if (!called_from_python_import()) return 0;
     if (!filename || !*filename) return 1;
+    if (!allow_dl_open && strstr(filename, "_ctypes")) { // 不允许使用ctypes
+        throw_permission_denied_err(true, "open dynamic link library");
+    }
     if (!allow_dl_paths || !*allow_dl_paths) return 0;
     char real_file[PATH_MAX];
     if (strchr(filename, '/') == NULL) {

@@ -768,17 +768,20 @@ class ToolSerializer(serializers.Serializer):
                 )
             work_flow = {}
             is_publish = False
+            default_model_setting = {}
             if tool.tool_type == "WORKFLOW":
                 tool_workflow = QuerySet(ToolWorkflow).filter(tool_id=tool.id).first()
                 if tool_workflow:
                     work_flow = tool_workflow.work_flow
                     is_publish = tool_workflow.is_publish
+                    default_model_setting = tool_workflow.default_model_setting
             return {
                 **ToolModelSerializer(tool).data,
                 "init_params": tool.init_params if tool.init_params else {},
                 "nick_name": nick_name,
                 "fileList": [skill_file_dict] if tool.tool_type == "SKILL" else [],
                 "work_flow": work_flow,
+                "default_model_setting": default_model_setting,
                 "is_publish": is_publish,
             }
 
@@ -1028,15 +1031,18 @@ class ToolSerializer(serializers.Serializer):
                 tool.get("work_flow"),
                 update_tool_map,
             )
+            defaults = {"tool_id": tool.get("id"), "workspace_id": workspace_id, "work_flow": work_flow}
+            if tool.get("default_model_setting") is not None:
+                defaults["default_model_setting"] = tool.get("default_model_setting")
             QuerySet(ToolWorkflow).update_or_create(
                 tool_id=tool.get("id"),
                 create_defaults={
                     "id": uuid.uuid7(),
                     "tool_id": tool.get("id"),
                     "workspace_id": workspace_id,
-                    "work_flow": work_flow,
+                    **defaults,
                 },
-                defaults={"tool_id": tool.get("id"), "workspace_id": workspace_id, "work_flow": work_flow},
+                defaults=defaults,
             )
             tool_model_list = [self.to_tool(tool, workspace_id, user_id, folder_id) for tool in tool_list]
             workflow_tool_model_list = [
@@ -1532,7 +1538,7 @@ class ToolSerializer(serializers.Serializer):
             if self.data.get("state"):
                 query_set = query_set.filter(Q(state=self.data.get("state", "")))
             if self.data.get("source_name"):
-                query_set = query_set.filter(Q(tool_name__icontains=self.data.get("source_name", "")))
+                query_set = query_set.filter(Q(source_name__icontains=self.data.get("source_name", "")))
             if self.data.get("record_id"):
                 query_set = query_set.filter(Q(id=self.data.get("record_id")))
             if self.data.get("workspace_id"):
@@ -1545,7 +1551,7 @@ class ToolSerializer(serializers.Serializer):
                 query_set,
                 lambda record: {
                     **ToolRecordModelSerializer(record).data,
-                    "source_name": record.tool_name,
+                    "source_name": record.source_name,
                     "tool_icon": record.tool_icon,
                     "trigger_type": record.trigger_type,
                 },

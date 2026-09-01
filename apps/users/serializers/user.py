@@ -56,6 +56,53 @@ PASSWORD_REGEX = re.compile(
 version, get_key = Cache_Version.SYSTEM.value
 
 
+# 验证码校验相关的安全限制
+MAX_VERIFY_CODE_ATTEMPTS = 5
+VERIFY_CODE_EXPIRE_SECONDS = 10 * 60
+# 达到错误上限后的锁定冷却时长
+VERIFY_CODE_LOCKOUT_SECONDS = 10 * 60
+
+
+def check_verify_code_attempts(email: str, type_code: str, submitted_code: str) -> bool:
+    """
+    校验验证码并限制错误尝试次数，防止验证码被暴力破解（CWE-307）。
+    失败计数按邮箱累计且不随重新发送验证码清零：连续错误达到上限后，进入固定冷却期的
+    锁定，锁定期间即使验证码正确也一律拒绝，必须等待冷却期结束才能重新尝试，从而
+    避免通过反复发送验证码维持无限猜解节奏。
+    校验通过时返回 True，否则抛出校验异常。
+    """
+    code_cache_key = email + ":" + type_code
+    failed_cache_key = code_cache_key + "_failed_attempts"
+    lock_cache_key = code_cache_key + "_locked"
+    cached_code = cache.get(get_key(code_cache_key), version=version)
+    failed_attempts = int(cache.get(get_key(failed_cache_key), version=version) or 0)
+
+    # 已进入锁定冷却期（独立锁 key，固定 10 分钟）：无论验证码是否正确都拒绝，
+    # 且不刷新锁定时长
+    if cache.get(get_key(lock_cache_key), version=version):
+        cache.delete(get_key(code_cache_key), version=version)
+        raise AppApiException(500, _("Too many verification code attempts, please try again later"))
+
+    if cached_code is None:
+        raise ExceptionCodeConstants.CODE_ERROR.value.to_app_api_exception()
+
+    if cached_code != submitted_code:
+        failed_attempts += 1
+        cache.set(get_key(failed_cache_key), failed_attempts,
+                  timeout=VERIFY_CODE_LOCKOUT_SECONDS, version=version)
+        if failed_attempts >= MAX_VERIFY_CODE_ATTEMPTS:
+            # 错满 5 次：验证码立即失效，并写入独立锁 key 进入固定 10 分钟锁定
+            cache.delete(get_key(code_cache_key), version=version)
+            cache.set(get_key(lock_cache_key), True, timeout=VERIFY_CODE_LOCKOUT_SECONDS, version=version)
+            raise AppApiException(500, _("Too many verification code attempts, please try again later"))
+        raise ExceptionCodeConstants.CODE_ERROR.value.to_app_api_exception()
+
+    # 校验通过，清除错误尝试计数与锁定
+    cache.delete(get_key(failed_cache_key), version=version)
+    cache.delete(get_key(lock_cache_key), version=version)
+    return True
+
+
 class UserProfileResponse(serializers.ModelSerializer):
     is_edit_password = serializers.BooleanField(required=True, label=_('Is Edit Password'))
     permissions = serializers.ListField(required=True, label=_('permissions'))
@@ -1016,13 +1063,10 @@ class RePasswordSerializer(serializers.Serializer):
     def is_valid(self, *, raise_exception=False):
         super().is_valid(raise_exception=True)
         email = self.data.get("email")
-        cache_code = cache.get(get_key(email + ':reset_password'), version=version)
         if self.data.get('password') != self.data.get('re_password'):
             raise AppApiException(ExceptionCodeConstants.PASSWORD_NOT_EQ_RE_PASSWORD.value.code,
                                   ExceptionCodeConstants.PASSWORD_NOT_EQ_RE_PASSWORD.value.message)
-        if cache_code != self.data.get('code'):
-            raise AppApiException(ExceptionCodeConstants.CODE_ERROR.value.code,
-                                  ExceptionCodeConstants.CODE_ERROR.value.message)
+        check_verify_code_attempts(email, "reset_password", self.data.get('code'))
         return True
 
     def reset_password(self):
@@ -1110,9 +1154,14 @@ class SendEmailSerializer(serializers.Serializer):
         code_cache_key = self.data.get('email') + ":" + self.data.get("type")
         code_cache_key_lock = code_cache_key + "_lock"
         ttl = cache.ttl(code_cache_key_lock, version=version)
-        if ttl is not None and ttl > 0:
+        seconds = ttl.total_seconds() if isinstance(ttl, datetime.timedelta) else ttl
+        if seconds is not None and seconds > 0:
             raise AppApiException(500, _("Do not send emails again within {seconds} seconds").format(
-                seconds=int(ttl.total_seconds())))
+                seconds=int(seconds)))
+        # 若邮箱处于验证码锁定冷却期，拒绝继续发送，避免验证码邮件轰炸
+        lock_cache_key = code_cache_key + "_locked"
+        if cache.get(get_key(lock_cache_key), version=version):
+            raise AppApiException(500, _("Too many verification code attempts, please try again later"))
         return True
 
     def send(self):
@@ -1161,7 +1210,7 @@ class SendEmailSerializer(serializers.Serializer):
         except Exception as e:
             cache.delete(get_key(code_cache_key_lock))
             return True
-        cache.set(get_key(code_cache_key), code, timeout=60 * 30, version=version)
+        cache.set(get_key(code_cache_key), code, timeout=VERIFY_CODE_EXPIRE_SECONDS, version=version)
         return True
 
 
@@ -1187,10 +1236,7 @@ class CheckCodeSerializer(serializers.Serializer):
 
     def is_valid(self, *, raise_exception=False):
         super().is_valid()
-        value = cache.get(get_key(self.data.get("email") + ":" + self.data.get("type")), version=version)
-        if value is None or value != self.data.get("code"):
-            raise ExceptionCodeConstants.CODE_ERROR.value.to_app_api_exception()
-        return True
+        return check_verify_code_attempts(self.data.get("email"), self.data.get("type"), self.data.get("code"))
 
 
 class SwitchLanguageSerializer(serializers.Serializer):

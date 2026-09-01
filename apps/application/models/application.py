@@ -11,6 +11,7 @@ from django.db import models
 from mptt.fields import TreeForeignKey
 from mptt.models import MPTTModel
 
+from common.encoder.encoder import SystemEncoder
 from common.mixins.app_model_mixin import AppModelMixin
 from knowledge.models import Knowledge
 from models_provider.models import Model
@@ -75,7 +76,7 @@ class Application(AppModelMixin):
     stt_model_params_setting = models.JSONField(verbose_name="STT模型参数相关设置", default=dict)
     problem_optimization = models.BooleanField(verbose_name="问题优化", default=False)
     icon = models.CharField(max_length=256, verbose_name="应用icon", default="./favicon.ico")
-    work_flow = models.JSONField(verbose_name="工作流数据", default=dict)
+    work_flow = models.JSONField(verbose_name="工作流数据", default=dict, encoder=SystemEncoder)
     type = models.CharField(verbose_name="应用类型", choices=ApplicationTypeChoices.choices,
                             default=ApplicationTypeChoices.SIMPLE, max_length=256)
     problem_optimization_prompt = models.CharField(verbose_name="问题优化提示词", max_length=102400, blank=True,
@@ -111,6 +112,7 @@ class Application(AppModelMixin):
     long_term_model_params_setting = models.JSONField(verbose_name="长期记忆模型参数相关设置", default=dict)
     long_term_trigger_type = models.CharField(verbose_name='长期记忆触发类型', default='ROUND')
     long_term_trigger_setting = models.JSONField(verbose_name='长期记忆触发配置', default=dict)
+    default_model_setting = models.JSONField(verbose_name="默认模型设置", default=dict)
 
     @staticmethod
     def get_default_model_prompt():
@@ -159,7 +161,7 @@ class ApplicationVersion(AppModelMixin):
     stt_model_params_setting = models.JSONField(verbose_name="STT模型参数相关设置", default=dict)
     problem_optimization = models.BooleanField(verbose_name="问题优化", default=False)
     icon = models.CharField(max_length=256, verbose_name="应用icon", default="./favicon.ico")
-    work_flow = models.JSONField(verbose_name="工作流数据", default=dict)
+    work_flow = models.JSONField(verbose_name="工作流数据", default=dict, encoder=SystemEncoder)
     type = models.CharField(verbose_name="应用类型", choices=ApplicationTypeChoices.choices,
                             default=ApplicationTypeChoices.SIMPLE, max_length=256)
     problem_optimization_prompt = models.CharField(verbose_name="问题优化提示词", max_length=102400, blank=True,
@@ -193,6 +195,7 @@ class ApplicationVersion(AppModelMixin):
     long_term_trigger_type = models.CharField(verbose_name='长期记忆触发类型', default='ROUND')
     long_term_trigger_setting = models.JSONField(verbose_name='长期记忆触发配置', default=dict)
     knowledge_ids = models.JSONField(verbose_name="数据集id列表", default=list)
+    default_model_setting = models.JSONField(verbose_name="默认模型设置", default=dict)
 
     class Meta:
         db_table = "application_version"

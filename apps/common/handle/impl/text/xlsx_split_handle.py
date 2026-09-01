@@ -14,7 +14,8 @@ import openpyxl
 from openpyxl import load_workbook
 
 from common.handle.base_split_handle import BaseSplitHandle
-from common.handle.impl.common_handle import xlsx_embed_cells_images
+from common.handle.impl.common_handle import xlsx_embed_cells_images, validate_xlsx_buffer
+from common.handle.impl.xlsx_utils import iter_sheet_content_rows
 from common.utils.logger import maxkb_logger
 
 splitter = '\n`-----------------------------------`\n'
@@ -34,7 +35,7 @@ def row_to_md(row, image_dict):
 
 
 def handle_sheet(file_name, sheet, image_dict, limit: int):
-    rows = sheet.rows
+    rows = iter_sheet_content_rows(sheet)
     paragraphs = []
     result = {'name': file_name, 'content': paragraphs}
     try:
@@ -71,14 +72,19 @@ class XlsxSplitHandle(BaseSplitHandle):
 
         # 获取第一行作为标题行
         headers = []
-        for idx, cell in enumerate(sheet[1]):
+        rows = iter_sheet_content_rows(sheet)
+        try:
+            title_row = next(rows)
+        except StopIteration:
+            return data
+        for idx, cell in enumerate(title_row):
             if cell.value is None:
                 headers.append(' ' * (idx + 1))
             else:
                 headers.append(cell.value)
 
         # 从第二行开始遍历每一行
-        for row in sheet.iter_rows(min_row=2, values_only=False):
+        for row in rows:
             row_data = {}
             for col_idx, cell in enumerate(row):
                 cell_value = cell.value
@@ -103,6 +109,7 @@ class XlsxSplitHandle(BaseSplitHandle):
     def handle(self, file, pattern_list: List, with_filter: bool, limit: int, get_buffer, save_image):
         buffer = get_buffer(file)
         try:
+            validate_xlsx_buffer(io.BytesIO(buffer))
             if type(limit) is str:
                 limit = int(limit)
             workbook = openpyxl.load_workbook(io.BytesIO(buffer))
