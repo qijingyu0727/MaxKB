@@ -51,9 +51,10 @@ from django.utils.translation import gettext_lazy as _
 from knowledge.models import File, FileSourceType, Knowledge, KnowledgeScope
 from knowledge.serializers.common import BatchMoveSerializer, BatchSerializer
 from knowledge.serializers.knowledge import KnowledgeModelSerializer, KnowledgeSerializer
-from langchain_mcp_adapters.client import MultiServerMCPClient
+from application.flow.backend.sandbox_mcp import SandboxMCPBackend
 from maxkb.conf import PROJECT_DIR
 from maxkb.const import CONFIG
+from models_provider.base_model_provider import ModelTypeConst
 from models_provider.models import Model
 from models_provider.tools import get_model_instance_by_model_workspace_id
 from rest_framework import serializers, status
@@ -63,6 +64,7 @@ from system_manage.models.resource_mapping import ResourceMapping
 from system_manage.serializers.resource_mapping_serializers import ResourceMappingSerializer
 from system_manage.serializers.user_resource_permission import UserResourcePermissionSerializer
 from tools.models import Tool, ToolScope, ToolType, ToolWorkflow
+from tools.serializers.init_field import validate_init_field_list
 from tools.serializers.tool import ToolExportModelSerializer
 from trigger.models import Trigger, TriggerTask
 from users.models import User
@@ -97,6 +99,17 @@ NODE_DEFAULT_MODEL_TYPE = {
 }
 
 
+def _default_model_not_configured_message(node_name: str, model_type: str) -> str:
+    """节点选了默认模型但该类别默认模型未配置时的报错,与前端「{节点名称}节点，{模型类别}的默认模型未配置」文案一致。"""
+    try:
+        model_type_label = str(ModelTypeConst[model_type].value['message'])
+    except Exception:
+        model_type_label = model_type
+    return _(
+        "{node_name} Node, the default model for {model_type_label} is not configured"
+    ).format(node_name=node_name, model_type_label=model_type_label)
+
+
 def validate_workflow_default_models(work_flow, default_model_setting):
     """发布前校验:节点选择「默认模型」但对应类别默认模型未配置时,禁止发布并定位。"""
     if not work_flow:
@@ -117,10 +130,7 @@ def validate_workflow_default_models(work_flow, default_model_setting):
                         and not ((default_model_setting or {}).get(default_model_type, {}) or {}).get('model_id')):
                     raise AppApiException(
                         500,
-                        _(
-                            "{node_name} selected the default model, but the default model "
-                            "of this type is not configured."
-                        ).format(node_name=node_name),
+                        _default_model_not_configured_message(node_name, default_model_type),
                     )
         if model_type is not None:
             # 取该节点实际使用的 model_id_type 字段(custom/reference/default)
@@ -142,10 +152,7 @@ def validate_workflow_default_models(work_flow, default_model_setting):
             ).get("model_id"):
                 raise AppApiException(
                     500,
-                    _(
-                        "{node_name} selected the default model, but the default model "
-                        "of this type is not configured."
-                    ).format(node_name=node_name),
+                    _default_model_not_configured_message(node_name, model_type),
                 )
         if node_type == "loop-node":
             validate_workflow_default_models(node_data.get("loop_body"), default_model_setting)
@@ -212,7 +219,52 @@ def get_authorized_tool_ids(user_id: str, workspace_id: str, tool_ids: List[str]
         )
         if "VIEW" in permission.permission_list or "ROLE" in permission.permission_list
     }
+    get_authorized_tool = DatabaseModelManage.get_model("get_authorized_tool")
+    if get_authorized_tool is not None:
+        shared_tool_query_set = QuerySet(Tool).filter(id__in=tool_ids, scope=ToolScope.SHARED)
+        granted_tool_ids.update(
+            str(tool.id) for tool in get_authorized_tool(shared_tool_query_set, workspace_id)
+        )
     return [tool_id for tool_id in tool_ids if tool_id in granted_tool_ids]
+
+
+def resolve_import_tools(tool_list, user_id, workspace_id, force_new=False):
+    """
+    处理导入包内的工具: 已存在且有权限的复用, 无权限或不存在则生成新id新建
+    @param tool_list:     导入包内的工具列表
+    @param user_id:       用户id
+    @param workspace_id:  工作空间id
+    @param force_new:     是否全部新建(工具模板导入)
+    @return: update_tool_map(包内旧id -> 最终id), tool_list(需要新建的工具, id已替换)
+    """
+    tool_list = list({tool.get("id"): tool for tool in tool_list}.values())
+    update_tool_map = {}
+    create_tool_list = []
+    if len(tool_list) > 0:
+        tool_id_list = reduce(
+            lambda x, y: [*x, *y],
+            [[tool.get("id"), generate_uuid((tool.get("id") + workspace_id or ""))] for tool in tool_list],
+            [],
+        )
+        # 存在的工具列表
+        exits_tool_id_list = [
+            str(tool.id) for tool in QuerySet(Tool).filter(id__in=tool_id_list, workspace_id=workspace_id)
+        ]
+        # 存在且有权限的工具列表
+        authorized_tool_ids = set(get_authorized_tool_ids(user_id, workspace_id, exits_tool_id_list))
+        for tool in tool_list:
+            old_id = tool.get("id")
+            generate_id = generate_uuid((old_id + workspace_id or ""))
+            reuse_id = next((i for i in [old_id, generate_id] if i in authorized_tool_ids), None)
+            if reuse_id is not None and not force_new:
+                # 有权限则复用
+                update_tool_map[old_id] = reuse_id
+                continue
+            # 无权限或不存在则生成新id新建
+            new_id = generate_id if not force_new and generate_id not in exits_tool_id_list else str(uuid.uuid7())
+            update_tool_map[old_id] = new_id
+            create_tool_list.append({**tool, "id": new_id})
+    return update_tool_map, create_tool_list
 
 
 def get_authorized_application_ids(user_id: str, workspace_id: str, application_ids: List[str]) -> List[str]:
@@ -465,6 +517,7 @@ class ApplicationCreateSerializer(serializers.Serializer):
             required=False, allow_null=True, allow_blank=True, max_length=102400, label=_("Opening remarks")
         )
         folder_id = serializers.CharField(required=True, label=_("folder id"))
+        default_model_setting = serializers.DictField(required=False, label=_("Default model settings"))
 
         @staticmethod
         def to_application_model(user_id: str, workspace_id: str, application: Dict):
@@ -497,6 +550,7 @@ class ApplicationCreateSerializer(serializers.Serializer):
                 file_upload_enable=application.get("file_upload_enable", False),
                 file_upload_setting=application.get("file_upload_setting", {}),
                 work_flow=default_workflow,
+                default_model_setting=application.get("default_model_setting") or {},
             )
 
     class SimplateRequest(serializers.Serializer):
@@ -915,44 +969,8 @@ class ApplicationSerializer(serializers.Serializer):
             raise AppApiException(1001, _("Unsupported file format"))
         application = mk_instance.application
         tool_list = mk_instance.get_tool_list()
-        update_tool_map = {}
-        if len(tool_list) > 0:
-            tool_id_list = reduce(
-                lambda x, y: [*x, *y],
-                [[tool.get("id"), generate_uuid((tool.get("id") + workspace_id or ""))] for tool in tool_list],
-                [],
-            )
-            # 存在的工具列表
-            exits_tool_id_list = [
-                str(tool.id) for tool in QuerySet(Tool).filter(id__in=tool_id_list, workspace_id=workspace_id)
-            ]
-            # 需要更新的工具集合
-            update_tool_map = {
-                tool.get("id"): generate_uuid((tool.get("id") + workspace_id or ""))
-                for tool in tool_list
-                if not exits_tool_id_list.__contains__(tool.get("id"))
-            }
-
-            tool_list = [
-                {**tool, "id": update_tool_map.get(tool.get("id"))}
-                for tool in tool_list
-                if not exits_tool_id_list.__contains__(tool.get("id"))
-                and not exits_tool_id_list.__contains__(generate_uuid((tool.get("id") + workspace_id or "")))
-            ]
-        # 导入包内新建的工具由导入者本人持有,无需校验;仅需校验绑定到已存在工具的引用
-        existing_bound_tool_ids = [
-            tool_id for tool_id in get_bound_tool_ids(application) if tool_id not in update_tool_map
-        ]
-        if existing_bound_tool_ids:
-            authorized_tool_ids = set(get_authorized_tool_ids(user_id, workspace_id, existing_bound_tool_ids))
-            unauthorized_tool_ids = [
-                tool_id for tool_id in existing_bound_tool_ids if tool_id not in authorized_tool_ids
-            ]
-            if unauthorized_tool_ids:
-                message = lazy_format(
-                    _("No permission to use tool(s): {tool_ids}"), tool_ids=", ".join(unauthorized_tool_ids)
-                )
-                raise AppApiException(403, str(message))
+        # 已存在且有权限的工具复用, 无权限或不存在则生成新id新建
+        update_tool_map, tool_list = resolve_import_tools(tool_list, user_id, workspace_id)
         application_model = self.to_application(application, workspace_id, user_id, update_tool_map, folder_id)
         tool_model_list = [self.to_tool(f, workspace_id, user_id) for f in tool_list]
         application_model.save()
@@ -1009,7 +1027,7 @@ class ApplicationSerializer(serializers.Serializer):
                 file_name=f"{tool.get('name')}.zip",
                 source_type=FileSourceType.TOOL,
                 source_id=tool.get("id"),
-                meta={},
+                meta={"skill_file": True},
             )
             skill_file.save(base64.b64decode(code))
             tool["code"] = skill_file_id
@@ -1020,7 +1038,7 @@ class ApplicationSerializer(serializers.Serializer):
             code=tool.get("code"),
             template_id=tool.get("template_id"),
             input_field_list=tool.get("input_field_list"),
-            init_field_list=tool.get("init_field_list"),
+            init_field_list=validate_init_field_list(tool.get("init_field_list")),
             is_active=False if len((tool.get("init_field_list") or [])) > 0 else tool.get("is_active"),
             tool_type=tool.get("tool_type", "CUSTOM") or "CUSTOM",
             scope=ToolScope.WORKSPACE,
@@ -1146,8 +1164,8 @@ class PlayDemoTextRequest(serializers.Serializer):
 
 
 async def get_mcp_tools(servers):
-    client = MultiServerMCPClient(servers)
-    return await client.get_tools()
+    backend = SandboxMCPBackend(servers)
+    return await backend.get_tools()
 
 
 class McpServersSerializer(serializers.Serializer):
@@ -1173,9 +1191,7 @@ class ApplicationOperateSerializer(serializers.Serializer):
             self.is_valid(raise_exception=True)
             McpServersSerializer(data=instance).is_valid(raise_exception=True)
         servers = json.loads(instance.get("mcp_servers"))
-        for server, config in servers.items():
-            if config.get("transport") not in ["sse", "streamable_http"]:
-                raise AppApiException(500, _("Only support transport=sse or transport=streamable_http"))
+        ToolExecutor().validate_mcp_transport(json.dumps(servers))
         tools = []
         for server in servers:
             tools += [
@@ -1577,30 +1593,8 @@ class ApplicationOperateSerializer(serializers.Serializer):
             raise AppApiException(1001, _("Unsupported file format"))
         application = mk_instance.application
         tool_list = mk_instance.get_tool_list()
-        update_tool_map = {}
-        if len(tool_list) > 0:
-            tool_id_list = reduce(
-                lambda x, y: [*x, *y],
-                [[tool.get("id"), generate_uuid((tool.get("id") + app.workspace_id or ""))] for tool in tool_list],
-                [],
-            )
-            # 存在的工具列表
-            exits_tool_id_list = [
-                str(tool.id) for tool in QuerySet(Tool).filter(id__in=tool_id_list, workspace_id=app.workspace_id)
-            ]
-            # 需要更新的工具集合
-            update_tool_map = {
-                tool.get("id"): generate_uuid((tool.get("id") + app.workspace_id or ""))
-                for tool in tool_list
-                if not exits_tool_id_list.__contains__(tool.get("id"))
-            }
-
-            tool_list = [
-                {**tool, "id": update_tool_map.get(tool.get("id"))}
-                for tool in tool_list
-                if not exits_tool_id_list.__contains__(tool.get("id"))
-                and not exits_tool_id_list.__contains__(generate_uuid((tool.get("id") + app.workspace_id or "")))
-            ]
+        # 已存在且有权限的工具复用, 无权限或不存在则生成新id新建
+        update_tool_map, tool_list = resolve_import_tools(tool_list, self.data.get("user_id"), app.workspace_id)
 
         tool_model_list = [self.to_tool(f, app.workspace_id, self.data.get("user_id")) for f in tool_list]
         work_flow = application.get("work_flow")
@@ -1643,7 +1637,7 @@ class ApplicationOperateSerializer(serializers.Serializer):
             code=tool.get("code"),
             template_id=tool.get("template_id"),
             input_field_list=tool.get("input_field_list"),
-            init_field_list=tool.get("init_field_list"),
+            init_field_list=validate_init_field_list(tool.get("init_field_list")),
             is_active=False if len((tool.get("init_field_list") or [])) > 0 else tool.get("is_active"),
             scope=ToolScope.WORKSPACE,
             folder_id=workspace_id,

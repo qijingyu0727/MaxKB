@@ -39,7 +39,7 @@ export default {
     roundTrigger: '按輪次觸發',
     roundTriggerTip: '累計到N輪後，自動提煉N輪對話，生成記憶',
     triggerInterval: '觸發間隔',
-    scheduledTrigger: '按时间触发',
+    scheduledTrigger: '定時觸發',
     scheduledTriggerTip: '到设定时间后，自动提炼周期内所有对话，生成记忆',
     cronExpressionInvalid: 'Cron表达式不合法',
     tips1: `開啟後，從開啟時間記錄新對話並按周期生成記憶，可通過`,
@@ -48,6 +48,7 @@ export default {
     defaultModel: '默認模型',
     custom: '自訂',
     modelRequiredMessage: '請選擇長期記憶模型',
+    modelSettingTip: '模型可在「長期記憶設定」中設定',
   },
   form: {
     appName: {

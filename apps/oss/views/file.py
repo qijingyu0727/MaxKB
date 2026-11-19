@@ -1,9 +1,11 @@
 # coding=utf-8
-from application.models import Chat
+from application.models import Application
 from maxkb.const import CONFIG
 from common.auth import AllTokenAuth, TokenAuth
-from common.auth.authentication import has_permissions
-from common.constants.permission_constants import ChatAuth, RoleConstants
+from common.auth.authentication import get_is_permissions, has_permissions
+from common.constants.permission_constants import (
+    ChatAuth, CompareConstants, PermissionConstants, RoleConstants, ViewPermission,
+)
 from common.exception.app_exception import AppUnauthorizedFailed
 from common.log.log import log
 from common.result import result
@@ -60,11 +62,6 @@ class FileView(APIView):
         if request.user is None or is_chat_path:
             if source_type != FileSourceType.CHAT.value:
                 raise AppUnauthorizedFailed(403, _("No permission"))
-            # 聊天文件必须归属于调用者所在应用下的会话
-            if source_type == FileSourceType.CHAT.value:
-                chat = QuerySet(Chat).filter(id=source_id, application_id=request.auth.application_id).first()
-                if chat is None:
-                    raise AppUnauthorizedFailed(403, _("No permission"))
         return result.success(
             FileSerializer(
                 data={
@@ -88,7 +85,8 @@ class FileView(APIView):
             tags=[_("File")],  # type: ignore
         )
         @log(menu="file", operate="Delete file")
-        @has_permissions(RoleConstants.ADMIN, RoleConstants.WORKSPACE_MANAGE, RoleConstants.USER)
+        @has_permissions(RoleConstants.ADMIN, RoleConstants.WORKSPACE_MANAGE, RoleConstants.USER,
+                         RoleConstants.EXTENDS_USER, RoleConstants.EXTENDS_ADMIN, RoleConstants.EXTENDS_WORKSPACE_MANAGE)
         def delete(self, request: Request, file_id: str):
             return result.success(
                 FileSerializer.Operate(
@@ -96,7 +94,7 @@ class FileView(APIView):
                         "id": file_id,
                         "http_range": request.headers.get("Range", ""),
                     }
-                ).delete(mk_file_auth=request.COOKIES.get("mk_file_auth"))
+                ).delete(user=request.user)
             )
 
 
@@ -112,12 +110,25 @@ class GetUrlView(APIView):
         tags=[_("Chat")],  # type: ignore
     )
     def get(self, request: Request, application_id: str):
-        if (
-            isinstance(request.auth, ChatAuth)
-            and request.auth.application_id
-            and str(request.auth.application_id) != application_id
-        ):
-            return result.error(_("No permission"))
+        if isinstance(request.auth, ChatAuth):
+            if not request.auth.application_id or str(request.auth.application_id) != application_id:
+                raise AppUnauthorizedFailed(403, _("No permission to access"))
+        else:
+            application = QuerySet(Application).filter(id=application_id).first()
+            if application is None:
+                raise AppUnauthorizedFailed(403, _("No permission to access"))
+            is_permissions = get_is_permissions(
+                request, workspace_id=application.workspace_id, application_id=application_id
+            )
+            if not is_permissions(
+                PermissionConstants.APPLICATION_READ.get_workspace_application_permission(),
+                PermissionConstants.APPLICATION_READ.get_workspace_permission_workspace_manage_role(),
+                ViewPermission([RoleConstants.USER.get_workspace_role()],
+                               [PermissionConstants.APPLICATION.get_workspace_application_permission()],
+                               CompareConstants.AND),
+                RoleConstants.WORKSPACE_MANAGE.get_workspace_role(),
+            ):
+                raise AppUnauthorizedFailed(403, _("No permission to access"))
         url = request.query_params.get("url")
         result_data = get_url_content(url, application_id)
         return result.success(result_data)

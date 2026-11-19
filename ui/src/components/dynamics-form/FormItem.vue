@@ -127,16 +127,27 @@ const errMsg = computed(() => {
       ? props.formfield.label + ' ' + t('dynamicsForm.tip.requiredMessage')
       : props.formfield.label.label + ' ' + t('dynamicsForm.tip.requiredMessage')
 })
+
+const component_validator = (rule: any, value: any, callback: any) => {
+  if (componentFormRef.value?.validate_rules) {
+    return componentFormRef.value.validate_rules(rule, value, callback)
+  }
+  callback()
+}
+
 /**
  * 反序列化
  * @param rule
  */
 const to_rule = (rule: any) => {
-  if (rule.validator) {
-    // eslint-disable-next-line prefer-const, @typescript-eslint/no-unused-vars
-    let validator = (rule: any, value: string, callback: any) => {}
-    eval(rule.validator)
-    return { ...rule, validator }
+  if (typeof rule.validator === 'string' || rule.validator === 'component') {
+    return { ...rule, validator: component_validator }
+  }
+  if (
+    rule.required &&
+    ['TextInput', 'TextareaInput', 'PasswordInput'].includes(props.formfield.input_type)
+  ) {
+    return { ...rule, type: 'string', whitespace: true }
   }
   return rule
 }
@@ -147,11 +158,11 @@ const to_rule = (rule: any) => {
 const rules = computed(() => {
   return props_info.value.rules
     ? props_info.value.rules.map(to_rule)
-    : {
+    : to_rule({
         message: errMsg.value,
         trigger: props.formfield.input_type === 'Slider' ? 'blur' : ['blur', 'change'],
         required: props.formfield.required === false ? false : true,
-      }
+      })
 })
 
 /**

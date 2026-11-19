@@ -1272,6 +1272,10 @@ function rowClickHandle(row: any, column: any) {
   快速创建空白文档
 */
 function creatQuickHandle(val: string) {
+  if (/[:\\/?*\[\]]/.test(val)) {
+    MsgError(t('views.document.tip.nameInvalidCharacters'))
+    return
+  }
   loading.value = true
   const obj = [{ name: val }]
   loadSharedApi({ type: 'document', systemType: apiType.value })
@@ -1469,6 +1473,10 @@ async function changeState(row: any) {
 }
 
 function editName(val: string, id: string) {
+  if (/[:\\/?*\[\]]/.test(val)) {
+    MsgError(t('views.document.tip.nameInvalidCharacters'))
+    return
+  }
   if (val) {
     const obj = {
       name: val,

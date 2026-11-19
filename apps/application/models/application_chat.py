@@ -9,6 +9,8 @@
 import uuid_utils.compat as uuid
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.utils.translation import gettext as _
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -141,7 +143,7 @@ class ApplicationChatUserStats(AppModelMixin):
     chat_user_type = models.CharField(max_length=64, verbose_name="对话用户类型", choices=ChatUserType.choices,
                                       default=ChatUserType.ANONYMOUS_USER)
     application = models.ForeignKey(Application, on_delete=models.CASCADE, verbose_name="应用id")
-    access_num = models.IntegerField(default=0, verbose_name="访问总次数次数")
+    access_num = models.IntegerField(default=0, verbose_name="访问总次数")
     intraday_access_num = models.IntegerField(default=0, verbose_name="当日访问次数")
 
     class Meta:
@@ -161,6 +163,13 @@ class ChatShareLink(AppModelMixin):
 
     class Meta:
         db_table = "application_chat_share_link"
+
+
+@receiver(pre_delete, sender=ChatShareLink)
+def delete_chat_share_file_access(sender, instance, using, **kwargs):
+    from common.utils.public_file_access import delete_public_share_file_access
+
+    delete_public_share_file_access(instance, using)
 
 
 class ApplicationLongTermMemory(AppModelMixin):

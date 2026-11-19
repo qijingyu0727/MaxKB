@@ -32,8 +32,10 @@ from application.models import Application, ApplicationTypeChoices, \
     ChatUserType, ApplicationChatUserStats, ApplicationAccessToken, ChatRecord, Chat, ApplicationVersion
 from application.serializers.application import ApplicationOperateSerializer
 from application.serializers.common import ChatInfo
+from common.auth.authentication import get_is_permissions
+from common.constants.permission_constants import CompareConstants, PermissionConstants, RoleConstants, ViewPermission
 from common.database_model_manage.database_model_manage import DatabaseModelManage
-from common.exception.app_exception import AppApiException, AppChatNumOutOfBoundsFailed, ChatException
+from common.exception.app_exception import AppApiException, AppChatNumOutOfBoundsFailed, AppUnauthorizedFailed, ChatException
 from common.handle.base_to_response import BaseToResponse
 from common.handle.impl.response.openai_to_response import OpenaiToResponse
 from common.handle.impl.response.system_to_response import SystemToResponse
@@ -135,15 +137,38 @@ def get_post_handler(chat_info: ChatInfo):
 class DebugChatSerializers(serializers.Serializer):
     chat_id = serializers.UUIDField(required=True, label=_("Conversation ID"))
 
-    def chat(self, instance: dict, base_to_response: BaseToResponse = SystemToResponse()):
+    def chat(self, instance: dict, base_to_response: BaseToResponse = SystemToResponse(), *, request,
+             scope="WORKSPACE"):
         self.is_valid(raise_exception=True)
         chat_id = self.data.get('chat_id')
         chat_info: ChatInfo = ChatInfo.get_cache(chat_id)
+        if (chat_info is None or not chat_info.debug
+                or chat_info.chat_user_type != ChatUserType.PLATFORM_USER.value
+                or str(chat_info.chat_user_id) != str(request.user.id)):
+            raise ChatException(500, _("Conversation does not exist"))
         application = QuerySet(Application).filter(id=chat_info.application_id).first()
+        if application is None:
+            raise ChatException(500, _("Application does not exist"))
+        is_permission = get_is_permissions(
+            request=request, workspace_id=application.workspace_id, application_id=str(application.id)
+        )
+        if scope == "SYSTEM":
+            authorized = is_permission(PermissionConstants.RESOURCE_APPLICATION_EDIT, RoleConstants.ADMIN)
+        else:
+            authorized = is_permission(
+                PermissionConstants.APPLICATION_READ.get_workspace_application_permission(),
+                PermissionConstants.APPLICATION_READ.get_workspace_permission_workspace_manage_role(),
+                ViewPermission([RoleConstants.USER.get_workspace_role()],
+                               [PermissionConstants.APPLICATION.get_workspace_application_permission()],
+                               CompareConstants.AND),
+                RoleConstants.WORKSPACE_MANAGE.get_workspace_role(),
+            )
+        if not authorized:
+            raise AppUnauthorizedFailed(403, _("No permission to access"))
         chat_info.application = application
         return ChatSerializers(data={
-            'chat_id': chat_id, "chat_user_id": chat_info.chat_user_id,
-            "chat_user_type": chat_info.chat_user_type,
+            'chat_id': chat_id, "chat_user_id": str(request.user.id),
+            "chat_user_type": ChatUserType.PLATFORM_USER.value,
             "application_id": chat_info.application.id, "debug": True
         }).chat(instance, base_to_response)
 
@@ -185,7 +210,7 @@ class PromptGenerateSerializer(serializers.Serializer):
             model_type__in=SUPPORTED_MODEL_TYPES
         ).exists()
         if not model_exist:
-            raise Exception(_("Model does not exists or is not an LLM model"))
+            raise Exception(_("Model does not exist or is not an LLM model"))
 
         def process():
             model = get_model_instance_by_model_workspace_id(model_id=model_id, workspace_id=workspace_id,
@@ -297,8 +322,10 @@ class ChatSerializers(serializers.Serializer):
 
     def is_valid_chat_id(self, chat_info: ChatInfo):
         if self.data.get('application_id') is not None and self.data.get('application_id') != str(
-                chat_info.application_id) and self.data.get('chat_user_id') is not None and self.data.get(
-            'chat_user_id') != str(chat_info.chat_user_id):
+                chat_info.application_id):
+            raise ChatException(500, _("Conversation does not exist"))
+        if self.data.get('chat_user_id') is not None and self.data.get('chat_user_id') != str(
+                chat_info.chat_user_id):
             raise ChatException(500, _("Conversation does not exist"))
 
     def is_valid_intraday_access_num(self):
@@ -454,12 +481,26 @@ class ChatSerializers(serializers.Serializer):
                 if not is_auth:
                     raise ChatException(500, _("The chat user is not authorized."))
 
-    def chat(self, instance: dict, base_to_response: BaseToResponse = SystemToResponse()):
+    def chat(self, instance: dict, base_to_response: BaseToResponse = SystemToResponse(),
+             check_chat_record: bool = True):
         super().is_valid(raise_exception=True)
         ChatMessageSerializers(data=instance).is_valid(raise_exception=True)
         chat_info = self.get_chat_info()
         chat_info.get_application()
         chat_info.get_chat_user(asker=(instance.get('form_data') or {}).get('asker'))
+        if check_chat_record and instance.get('chat_record_id'):
+            if self.data.get('debug'):
+                # 调试记录只保存在当前会话缓存中，不会写入数据库。
+                chat_record_exists = any(
+                    str(record.id) == str(instance.get('chat_record_id')) and
+                    str(record.chat_id) == str(self.data.get('chat_id'))
+                    for record in chat_info.chat_record_list
+                )
+            else:
+                chat_record_exists = QuerySet(ChatRecord).filter(id=instance.get('chat_record_id'),
+                                                                 chat_id=self.data.get('chat_id')).exists()
+            if not chat_record_exists:
+                raise ChatException(500, _("Conversation does not exist"))
         self.is_valid_chat_id(chat_info)
         if not self.data.get('debug'):
             self.is_valid_chat_user()
@@ -491,11 +532,11 @@ class ChatSerializers(serializers.Serializer):
         if application_version is None:
             raise ChatException(500, _("The application has not been published. Please use it after publishing."))
         if application.type == ApplicationTypeChoices.SIMPLE:
-            return self.re_open_chat_simple(chat_id, application)
+            return self.re_open_chat_simple(chat_id, application, chat)
         else:
-            return self.re_open_chat_work_flow(chat_id, application)
+            return self.re_open_chat_work_flow(chat_id, application, chat)
 
-    def re_open_chat_simple(self, chat_id, application):
+    def re_open_chat_simple(self, chat_id, application: Application, chat: Chat):
         if self.data.get('debug'):
             # 数据集id列表
             knowledge_id_list = [str(row.target_id) for row in
@@ -512,7 +553,7 @@ class ChatSerializers(serializers.Serializer):
                                     QuerySet(Document).filter(
                                         knowledge_id__in=knowledge_id_list,
                                         is_active=False)]
-        chat_info = ChatInfo(chat_id, self.data.get('chat_user_id'), self.data.get('chat_user_type'),
+        chat_info = ChatInfo(chat_id, chat.chat_user_id, str(chat.chat_user_type),
                              self.data.get('ip_address'),
                              self.data.get('source'), knowledge_id_list,
                              exclude_document_id_list, application.id)
@@ -522,8 +563,8 @@ class ChatSerializers(serializers.Serializer):
             chat_info.chat_record_list.append(chat_record)
         return chat_info
 
-    def re_open_chat_work_flow(self, chat_id, application):
-        chat_info = ChatInfo(chat_id, self.data.get('chat_user_id'), self.data.get('chat_user_type'),
+    def re_open_chat_work_flow(self, chat_id, application: Application, chat: Chat):
+        chat_info = ChatInfo(chat_id, chat.chat_user_id, str(chat.chat_user_type),
                              self.data.get('ip_address'),
                              self.data.get('source'), [], [],
                              application.id)

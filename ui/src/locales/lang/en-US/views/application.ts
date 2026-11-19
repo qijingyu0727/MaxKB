@@ -45,7 +45,7 @@ export default {
     roundTriggerTip:
       'After accumulating N rounds, automatically extract N rounds of conversation to generate memory',
     triggerInterval: 'Trigger Interval',
-    scheduledTrigger: 'Scheduled Trigger',
+    scheduledTrigger: 'Timed Trigger',
     scheduledTriggerTip:
       'After reaching the set time, automatically extract all conversations within the cycle to generate memory',
     cronExpressionInvalid: 'Cron expression is invalid',
@@ -55,6 +55,7 @@ After disabling, the long-term memory of the conversation users will be cleared,
     defaultModel: 'Default Model',
     custom: 'Custom',
     modelRequiredMessage: 'Please select a long-term memory model',
+    modelSettingTip: 'The model can be configured in "Long-Term Memory Settings"',
   },
   form: {
     appName: {

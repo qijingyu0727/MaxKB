@@ -19,6 +19,7 @@ from common.exception.app_exception import AppApiException
 from common.utils.rsa_util import rsa_long_decrypt
 from common.utils.shared_resource_auth import filter_authorized_ids, get_runtime_user_id
 from common.utils.tool_code import ToolExecutor
+from django.db import connection
 from django.db.models import QuerySet
 from django.utils.translation import gettext as _
 from knowledge.models import File
@@ -205,8 +206,7 @@ class BaseChatNode(IChatNode):
                 model_params_setting = reference_data.get("model_params_setting")
         elif model_id_type == "default":
             default_setting = self.workflow_manage.get_default_model_setting("LLM")
-            if default_setting.get("model_id"):
-                model_id = default_setting.get("model_id")
+            model_id = default_setting.get("model_id")
             model_params_setting = default_setting.get("model_params_setting", model_params_setting)
         if model_id is None or model_id == "":
             raise Exception(_("Model is not allowed to be empty"))
@@ -280,6 +280,8 @@ class BaseChatNode(IChatNode):
         if mcp_result:
             return mcp_result
         message_list = [SystemMessage(system)] + message_list
+        # 归还链接到连接池
+        connection.close()
         if stream:
             r = chat_model.stream(message_list)
             return NodeResult(
@@ -443,11 +445,13 @@ class BaseChatNode(IChatNode):
 
             source_id = application_id or knowledge_id or tool_id
             source_type = "APPLICATION" if application_id else "KNOWLEDGE" if knowledge_id else "TOOL"
+            # 归还链接到连接池
+            connection.close()
             r = mcp_response_generator(
                 chat_model,
                 system_prompt,
                 message_list,
-                json.dumps(mcp_servers_config),
+                mcp_servers_config,
                 mcp_output_enable,
                 tool_init_params,
                 source_id,

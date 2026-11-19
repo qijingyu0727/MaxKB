@@ -4,6 +4,7 @@ import time
 from functools import reduce
 from typing import List, Dict
 
+from django.db import connection
 from django.db.models import QuerySet
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 
@@ -149,8 +150,7 @@ class BaseVideoUnderstandNode(IVideoUnderstandNode):
                 model_params_setting = reference_data.get('model_params_setting')
         elif model_id_type == 'default':
             default_setting = self.workflow_manage.get_default_model_setting('IMAGE')
-            if default_setting.get('model_id'):
-                model_id = default_setting.get('model_id')
+            model_id = default_setting.get('model_id')
             model_params_setting = default_setting.get('model_params_setting', model_params_setting)
 
         from django.utils.translation import gettext_lazy as _
@@ -179,6 +179,7 @@ class BaseVideoUnderstandNode(IVideoUnderstandNode):
         self.context['message_list'] = message_list
         self.generate_context_video(video)
         self.context['dialogue_type'] = dialogue_type
+        connection.close()
         if stream:
             r = video_model.stream(message_list)
             return NodeResult({'result': r, 'chat_model': video_model, 'message_list': message_list,

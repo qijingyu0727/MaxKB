@@ -2,7 +2,6 @@
 from functools import reduce
 from typing import List
 
-import requests
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from django.utils.translation import gettext_lazy as _
 from application.flow.common import WorkflowMode
@@ -12,6 +11,7 @@ from common.utils.common import bytes_to_uploaded_file
 from knowledge.models import FileSourceType
 from models_provider.tools import get_model_instance_by_model_workspace_id
 from oss.serializers.file import FileSerializer
+from oss.url_fetch import fetch_public_bytes
 
 
 class BaseImageGenerateNode(IImageGenerateNode):
@@ -38,8 +38,7 @@ class BaseImageGenerateNode(IImageGenerateNode):
                 model_params_setting = reference_data.get('model_params_setting')
         elif model_id_type == 'default':
             default_setting = self.workflow_manage.get_default_model_setting('TTI')
-            if default_setting.get('model_id'):
-                model_id = default_setting.get('model_id')
+            model_id = default_setting.get('model_id')
             model_params_setting = default_setting.get('model_params_setting', model_params_setting)
 
         if model_id is None or model_id == '':
@@ -64,7 +63,7 @@ class BaseImageGenerateNode(IImageGenerateNode):
             if isinstance(image_url, str):
                 if image_url.startswith('http'):
                     # HTTP URL 情况
-                    image_url = requests.get(image_url).content
+                    image_url = fetch_public_bytes(image_url)
                 elif image_url.startswith('data:image'):
                     # Data URL 格式 (data:image/png;base64,...)
                     import base64
@@ -78,7 +77,7 @@ class BaseImageGenerateNode(IImageGenerateNode):
             file_urls.append(file_url)
         self.context['image_list'] = [{'file_id': path.split('/')[-1], 'url': path} for path in file_urls]
         answer = ' '.join([f"![Image]({path})" for path in file_urls])
-        return NodeResult({'answer': answer, 'chat_model': tti_model, 'message_list': message_list,
+        return NodeResult({'answer': answer, 'message_list': message_list,
                            'image': [{'file_id': path.split('/')[-1], 'url': path} for path in file_urls],
                            'history_message': history_message, 'question': question}, {})
 

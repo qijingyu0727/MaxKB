@@ -16,6 +16,52 @@
       @submit.prevent
     >
       <el-form-item
+        v-if="modelSettingEnable"
+        :label="$t('views.application.form.aiModel.label')"
+        prop="long_term_model_id"
+        :rules="modelIdRules"
+      >
+        <div class="w-full">
+          <el-radio-group
+            v-model="form.long_term_model_id_type"
+            class="mb-8"
+            @change="handleModelTypeChange"
+          >
+            <el-radio
+              :label="$t('views.application.longTermMemory.defaultModel')"
+              value="default"
+            />
+            <el-radio :label="$t('views.application.longTermMemory.custom')" value="custom" />
+          </el-radio-group>
+        </div>
+        <DefaultModelDisplay
+          v-if="form.long_term_model_id_type === 'default'"
+          type="LLM"
+          :options="modelOptions"
+        />
+        <div v-else class="flex-between w-full">
+          <ModelSelect
+            v-model="form.long_term_model_id"
+            :placeholder="$t('views.application.form.aiModel.placeholder')"
+            :options="modelOptions"
+            @change="long_term_model_change"
+            @submitModel="getSelectModel"
+            showFooter
+            :model-type="'LLM'"
+          >
+          </ModelSelect>
+          <el-button
+            class="ml-8"
+            :disabled="!form.long_term_model_id"
+            @click="openLongTermParamSettingDialog"
+          >
+            <el-icon>
+              <Operation />
+            </el-icon>
+          </el-button>
+        </div>
+      </el-form-item>
+      <el-form-item
         :label="$t('views.application.longTermMemory.triggerType')"
         prop="trigger_type"
         :rules="{
@@ -100,26 +146,34 @@
               </el-tooltip>
             </div>
 
-            <el-cascader
+            <el-form-item
               v-if="form.trigger_setting.schedule_type !== 'cron'"
-              v-model="scheduled"
-              :options="triggerCycleOptions"
-              @change="handleChangeScheduled"
-              style="width: 100%"
-            />
-            <el-input
-              v-else
-              v-model="form.trigger_setting.cron_expression"
-              :placeholder="t('views.trigger.triggerCycle.placeholder')"
-              clearable
-              @blur="validateCron"
-              @input="validateCron"
-            />
-            <div v-if="cronError" class="el-form-item__error">{{ cronError }}</div>
+              prop="trigger_setting.schedule_type"
+              :rules="scheduledRules"
+            >
+              <el-cascader
+                v-model="scheduled"
+                :options="triggerCycleOptions"
+                @change="handleChangeScheduled"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item v-else prop="trigger_setting.cron_expression" :rules="cronRules">
+              <el-input
+                v-model="form.trigger_setting.cron_expression"
+                :placeholder="t('views.trigger.triggerCycle.placeholder')"
+                clearable
+              />
+            </el-form-item>
           </el-card>
         </el-card>
       </el-form-item>
     </el-form>
+
+    <AIModeParamSettingDialog
+      ref="longTermModeParamSettingDialogRef"
+      @refresh="refreshModelParams"
+    />
 
     <template #footer>
       <span class="dialog-footer">
@@ -133,42 +187,137 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { triggerCycleOptions } from '@/utils/trigger.ts'
 import { t } from '@/locales'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, groupBy } from 'lodash'
 import { isValidCron } from 'cron-validator'
+import { useRoute } from 'vue-router'
+import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
+import DefaultModelDisplay from '@/workflow/common/DefaultModelDisplay.vue'
+import AIModeParamSettingDialog from '@/views/application/component/AIModeParamSettingDialog.vue'
+
+const route = useRoute()
+const apiType = computed(() => {
+  if (route.path.includes('resource-management')) {
+    return 'systemManage'
+  } else {
+    return 'workspace'
+  }
+})
 
 const emit = defineEmits(['refresh'])
 const dialogVisible = ref(false)
 const paramFormRef = ref()
 const loading = ref(false)
+const modelOptions = ref<any>(null)
+const longTermModeParamSettingDialogRef = ref()
+const modelSettingEnable = ref(false)
 const form = ref<any>({
   trigger_type: 'ROUND',
   trigger_setting: {
     rounds: 10,
   },
+  long_term_model_id_type: 'default',
+  long_term_model_id: '',
 })
 
 const lastPresetSetting = ref<any>(null)
-const cronError = ref('')
+
+const handleModelTypeChange = () => {
+  nextTick(() => paramFormRef.value?.clearValidate('long_term_model_id'))
+}
 
 const changeTriggerType = (type: string) => {
   form.value.trigger_type = type
 }
 
-const validateCron = () => {
-  const cron = form.value.trigger_setting.cron_expression?.trim()
-  if (!cron) {
-    cronError.value = ''
-    return
-  }
-  const fields = cron.split(/\s+/)
-  if (fields.length !== 5 || !isValidCron(cron)) {
-    cronError.value = t('views.application.longTermMemory.cronExpressionInvalid')
+const modelIdRules = computed(() => ({
+  validator: (rule: any, value: any, callback: any) => {
+    if (form.value.long_term_model_id_type === 'custom' && !form.value.long_term_model_id) {
+      callback(new Error(t('views.application.longTermMemory.modelRequiredMessage')))
+    } else {
+      callback()
+    }
+  },
+  trigger: 'change',
+}))
+
+function getSelectModel() {
+  const obj =
+    apiType.value === 'systemManage'
+      ? {
+          model_type: 'LLM',
+          workspace_id: form.value?.workspace_id,
+        }
+      : {
+          model_type: 'LLM',
+        }
+  loadSharedApi({ type: 'model', systemType: apiType.value })
+    .getSelectModelList(obj)
+    .then((res: any) => {
+      modelOptions.value = groupBy(res?.data, 'provider')
+    })
+    .catch(() => {})
+}
+
+const long_term_model_change = (model_id?: string) => {
+  form.value.long_term_model_id = model_id
+  if (model_id) {
+    longTermModeParamSettingDialogRef.value?.reset_default(model_id, form.value.application_id)
   } else {
-    cronError.value = ''
+    form.value.long_term_model_params_setting = {}
   }
+}
+
+function refreshModelParams(data: any) {
+  form.value.long_term_model_params_setting = data
+}
+
+function openLongTermParamSettingDialog() {
+  if (form.value.long_term_model_id) {
+    longTermModeParamSettingDialogRef.value?.open(
+      form.value.long_term_model_id,
+      form.value.application_id,
+      form.value.long_term_model_params_setting,
+    )
+  }
+}
+
+const scheduledRules = {
+  validator: (rule: any, value: any, callback: any) => {
+    const { schedule_type, interval_unit, interval_value, days, time } = form.value.trigger_setting
+    let valid = false
+    if (schedule_type === 'interval') {
+      valid = !!interval_unit && !!interval_value
+    } else if (schedule_type === 'daily') {
+      valid = !!time?.[0]
+    } else if (schedule_type === 'weekly' || schedule_type === 'monthly') {
+      valid = !!days?.[0] && !!time?.[0]
+    }
+    if (valid) {
+      callback()
+    } else {
+      callback(new Error(t('common.selectPlaceholder') + t('views.trigger.triggerCycle.title')))
+    }
+  },
+  trigger: 'change',
+}
+
+const cronRules = {
+  validator: (rule: any, value: any, callback: any) => {
+    const cron = value?.trim()
+    if (!cron) {
+      callback(
+        new Error(t('common.inputPlaceholder') + t('views.trigger.triggerCycle.cronExpression')),
+      )
+    } else if (cron.split(/\s+/).length !== 5 || !isValidCron(cron)) {
+      callback(new Error(t('views.application.longTermMemory.cronExpressionInvalid')))
+    } else {
+      callback()
+    }
+  },
+  trigger: ['blur', 'change'],
 }
 
 function switchScheduleType() {
@@ -191,7 +340,6 @@ function switchScheduleType() {
     form.value.trigger_setting.time = undefined
     return
   }
-  cronError.value = ''
   const backup = lastPresetSetting.value
   form.value.trigger_setting.schedule_type = backup?.schedule_type || 'daily'
   form.value.trigger_setting.interval_unit = backup?.interval_unit
@@ -244,14 +392,34 @@ const scheduled = computed({
   },
 })
 
-const open = (trigger_type: any, trigger_setting: any) => {
+const open = (data: any) => {
   dialogVisible.value = true
+  const {
+    trigger_type,
+    trigger_setting,
+    long_term_model_id_type,
+    long_term_model_id,
+    model_params_setting,
+    application_id,
+    workspace_id,
+    model_setting_enable,
+  } = data || {}
+  modelSettingEnable.value = model_setting_enable ?? false
+  form.value.application_id = application_id
+  form.value.workspace_id = workspace_id
+  form.value.long_term_model_id_type = long_term_model_id_type ?? 'default'
+  form.value.long_term_model_id = long_term_model_id
+  form.value.long_term_model_params_setting = model_params_setting
   if (trigger_setting && trigger_setting.rounds) {
     form.value.trigger_setting = trigger_setting
   } else {
     form.value.trigger_setting = { rounds: 10 }
   }
   form.value.trigger_type = trigger_type ?? 'ROUND'
+  if (modelSettingEnable.value) {
+    getSelectModel()
+  }
+  nextTick(() => paramFormRef.value?.clearValidate())
 }
 
 const submit = () => {
